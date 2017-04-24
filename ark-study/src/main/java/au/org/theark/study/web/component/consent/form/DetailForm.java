@@ -18,11 +18,21 @@
  ******************************************************************************/
 package au.org.theark.study.web.component.consent.form;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Date;
-import java.util.List;
-
+import au.org.theark.core.exception.ArkSystemException;
+import au.org.theark.core.exception.EntityNotFoundException;
+import au.org.theark.core.model.audit.entity.ConsentHistory;
+import au.org.theark.core.model.study.entity.*;
+import au.org.theark.core.service.IArkCommonService;
+import au.org.theark.core.vo.ArkCrudContainerVO;
+import au.org.theark.core.vo.ConsentVO;
+import au.org.theark.core.web.behavior.ArkDefaultFormFocusBehavior;
+import au.org.theark.core.web.component.ArkDatePicker;
+import au.org.theark.core.web.component.audit.button.HistoryButtonPanel;
+import au.org.theark.core.web.component.panel.collapsiblepanel.CollapsiblePanel;
+import au.org.theark.core.web.form.AbstractDetailForm;
+import au.org.theark.study.service.IStudyService;
+import au.org.theark.study.web.Constants;
+import au.org.theark.study.web.component.consenthistory.ConsentHistoryPanel;
 import org.apache.shiro.SecurityUtils;
 import org.apache.wicket.AttributeModifier;
 import org.apache.wicket.ajax.AjaxRequestTarget;
@@ -30,11 +40,7 @@ import org.apache.wicket.ajax.form.AjaxFormComponentUpdatingBehavior;
 import org.apache.wicket.ajax.markup.html.form.AjaxButton;
 import org.apache.wicket.extensions.markup.html.form.DateTextField;
 import org.apache.wicket.markup.html.WebMarkupContainer;
-import org.apache.wicket.markup.html.form.ChoiceRenderer;
-import org.apache.wicket.markup.html.form.DropDownChoice;
-import org.apache.wicket.markup.html.form.Form;
-import org.apache.wicket.markup.html.form.TextArea;
-import org.apache.wicket.markup.html.form.TextField;
+import org.apache.wicket.markup.html.form.*;
 import org.apache.wicket.markup.html.form.upload.FileUpload;
 import org.apache.wicket.markup.html.form.upload.FileUploadField;
 import org.apache.wicket.markup.html.panel.FeedbackPanel;
@@ -49,29 +55,10 @@ import org.apache.wicket.validation.validator.StringValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import au.org.theark.core.exception.ArkSystemException;
-import au.org.theark.core.exception.EntityNotFoundException;
-import au.org.theark.core.model.audit.entity.ConsentHistory;
-import au.org.theark.core.model.study.entity.Consent;
-import au.org.theark.core.model.study.entity.ConsentStatus;
-import au.org.theark.core.model.study.entity.ConsentType;
-import au.org.theark.core.model.study.entity.LinkSubjectStudy;
-import au.org.theark.core.model.study.entity.Person;
-import au.org.theark.core.model.study.entity.Study;
-import au.org.theark.core.model.study.entity.StudyComp;
-import au.org.theark.core.model.study.entity.StudyCompStatus;
-import au.org.theark.core.model.study.entity.YesNo;
-import au.org.theark.core.service.IArkCommonService;
-import au.org.theark.core.vo.ArkCrudContainerVO;
-import au.org.theark.core.vo.ConsentVO;
-import au.org.theark.core.web.behavior.ArkDefaultFormFocusBehavior;
-import au.org.theark.core.web.component.ArkDatePicker;
-import au.org.theark.core.web.component.audit.button.HistoryButtonPanel;
-import au.org.theark.core.web.component.panel.collapsiblepanel.CollapsiblePanel;
-import au.org.theark.core.web.form.AbstractDetailForm;
-import au.org.theark.study.service.IStudyService;
-import au.org.theark.study.web.Constants;
-import au.org.theark.study.web.component.consenthistory.ConsentHistoryPanel;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Date;
+import java.util.List;
 
 /**
  * @author nivedann
@@ -214,8 +201,8 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 		 }catch (ArkSystemException e) {
 				containerForm.error("There was a system error. Please contact support.");
 		}
-		//List<StudyComp> studyCompList = iArkCommonService.getStudyComponentByStudy(study);
-		List<StudyComp> studyCompList = iArkCommonService.getStudyComponentsNotInThisSubject(study,linkSubjectStudy);
+		List<StudyComp> studyCompList = iArkCommonService.getStudyComponentByStudy(study);
+		//List<StudyComp> studyCompList = iArkCommonService.getStudyComponentsNotInThisSubject(study,linkSubjectStudy);
 		ChoiceRenderer<StudyComp> defaultChoiceRenderer = new ChoiceRenderer<StudyComp>(Constants.NAME, Constants.ID);
 		studyComponentChoice = new DropDownChoice<StudyComp>(Constants.CONSENT_STUDY_COMP, studyCompList, defaultChoiceRenderer){
 		private static final long	serialVersionUID	= 1L;
@@ -224,7 +211,7 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 				if(isNew()){
 					setEnabled(true);
 				}else{
-					studyCompList.set(0, getModelObject());
+					//studyCompList.set(0, getModelObject());
 					setEnabled(false);
 				}
 				super.onBeforeRender();
