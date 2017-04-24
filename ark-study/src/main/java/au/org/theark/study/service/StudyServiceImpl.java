@@ -18,21 +18,24 @@
  ******************************************************************************/
 package au.org.theark.study.service;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Queue;
-import java.util.Set;
-
+import au.org.theark.core.dao.IAuditDao;
+import au.org.theark.core.dao.ICustomFieldDao;
+import au.org.theark.core.exception.*;
+import au.org.theark.core.model.audit.entity.ConsentHistory;
+import au.org.theark.core.model.audit.entity.LssConsentHistory;
+import au.org.theark.core.model.lims.entity.BioCollectionUidTemplate;
+import au.org.theark.core.model.lims.entity.BiospecimenUidTemplate;
+import au.org.theark.core.model.study.entity.*;
+import au.org.theark.core.service.IArkCommonService;
+import au.org.theark.core.vo.*;
+import au.org.theark.study.model.capsule.ArkRelativeCapsule;
+import au.org.theark.study.model.capsule.RelativeCapsule;
+import au.org.theark.study.model.dao.IStudyDao;
+import au.org.theark.study.model.vo.RelationshipVo;
+import au.org.theark.study.model.vo.StudyCalendarVo;
+import au.org.theark.study.util.*;
+import au.org.theark.study.web.Constants;
+import au.org.theark.study.web.component.subjectUpload.UploadUtilities;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.subject.Subject;
 import org.apache.wicket.util.file.File;
@@ -47,89 +50,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import au.org.theark.core.dao.IAuditDao;
-import au.org.theark.core.dao.ICustomFieldDao;
-import au.org.theark.core.exception.ArkBaseException;
-import au.org.theark.core.exception.ArkSubjectInsertException;
-import au.org.theark.core.exception.ArkSystemException;
-import au.org.theark.core.exception.ArkUniqueException;
-import au.org.theark.core.exception.CannotRemoveArkModuleException;
-import au.org.theark.core.exception.EntityCannotBeRemoved;
-import au.org.theark.core.exception.EntityExistsException;
-import au.org.theark.core.exception.EntityNotFoundException;
-import au.org.theark.core.exception.FileFormatException;
-import au.org.theark.core.exception.StatusNotAvailableException;
-import au.org.theark.core.exception.UnAuthorizedOperation;
-import au.org.theark.core.model.audit.entity.ConsentHistory;
-import au.org.theark.core.model.audit.entity.LssConsentHistory;
-import au.org.theark.core.model.lims.entity.BioCollectionUidTemplate;
-import au.org.theark.core.model.lims.entity.BiospecimenUidTemplate;
-import au.org.theark.core.model.study.entity.Address;
-import au.org.theark.core.model.study.entity.AddressStatus;
-import au.org.theark.core.model.study.entity.AddressType;
-import au.org.theark.core.model.study.entity.ArkFunction;
-import au.org.theark.core.model.study.entity.ArkUser;
-import au.org.theark.core.model.study.entity.AuditHistory;
-import au.org.theark.core.model.study.entity.Consent;
-import au.org.theark.core.model.study.entity.ConsentFile;
-import au.org.theark.core.model.study.entity.ConsentOption;
-import au.org.theark.core.model.study.entity.ConsentStatus;
-import au.org.theark.core.model.study.entity.ConsentType;
-import au.org.theark.core.model.study.entity.CorrespondenceDirectionType;
-import au.org.theark.core.model.study.entity.CorrespondenceModeType;
-import au.org.theark.core.model.study.entity.CorrespondenceOutcomeType;
-import au.org.theark.core.model.study.entity.Correspondences;
-import au.org.theark.core.model.study.entity.CustomField;
-import au.org.theark.core.model.study.entity.CustomFieldCategory;
-import au.org.theark.core.model.study.entity.CustomFieldType;
-import au.org.theark.core.model.study.entity.EmailStatus;
-import au.org.theark.core.model.study.entity.FamilyCustomFieldData;
-import au.org.theark.core.model.study.entity.GenderType;
-import au.org.theark.core.model.study.entity.ICustomFieldData;
-import au.org.theark.core.model.study.entity.LinkStudySubstudy;
-import au.org.theark.core.model.study.entity.LinkSubjectPedigree;
-import au.org.theark.core.model.study.entity.LinkSubjectStudy;
-import au.org.theark.core.model.study.entity.LinkSubjectTwin;
-import au.org.theark.core.model.study.entity.MaritalStatus;
-import au.org.theark.core.model.study.entity.OtherID;
-import au.org.theark.core.model.study.entity.Person;
-import au.org.theark.core.model.study.entity.PersonLastnameHistory;
-import au.org.theark.core.model.study.entity.Phone;
-import au.org.theark.core.model.study.entity.PhoneStatus;
-import au.org.theark.core.model.study.entity.PhoneType;
-import au.org.theark.core.model.study.entity.Study;
-import au.org.theark.core.model.study.entity.StudyCalendar;
-import au.org.theark.core.model.study.entity.StudyComp;
-import au.org.theark.core.model.study.entity.StudyPedigreeConfiguration;
-import au.org.theark.core.model.study.entity.StudyStatus;
-import au.org.theark.core.model.study.entity.SubjectCustomFieldData;
-import au.org.theark.core.model.study.entity.SubjectFile;
-import au.org.theark.core.model.study.entity.SubjectStatus;
-import au.org.theark.core.model.study.entity.TitleType;
-import au.org.theark.core.model.study.entity.TwinType;
-import au.org.theark.core.model.study.entity.Upload;
-import au.org.theark.core.model.study.entity.VitalStatus;
-import au.org.theark.core.service.IArkCommonService;
-import au.org.theark.core.vo.ArkUserVO;
-import au.org.theark.core.vo.ConsentVO;
-import au.org.theark.core.vo.CustomFieldVO;
-import au.org.theark.core.vo.StudyModelVO;
-import au.org.theark.core.vo.SubjectVO;
-import au.org.theark.core.vo.UploadVO;
-import au.org.theark.study.model.capsule.ArkRelativeCapsule;
-import au.org.theark.study.model.capsule.RelativeCapsule;
-import au.org.theark.study.model.dao.IStudyDao;
-import au.org.theark.study.model.vo.RelationshipVo;
-import au.org.theark.study.model.vo.StudyCalendarVo;
-import au.org.theark.study.util.ConsentHistoryComparator;
-import au.org.theark.study.util.DataUploader;
-import au.org.theark.study.util.LinkSubjectStudyConsentHistoryComparator;
-import au.org.theark.study.util.PedigreeUploadValidator;
-import au.org.theark.study.util.SubjectUploadValidator;
-import au.org.theark.study.web.Constants;
-import au.org.theark.study.web.component.subjectUpload.UploadUtilities;
-
-import com.csvreader.CsvReader;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 
 
@@ -659,13 +584,6 @@ public class StudyServiceImpl implements IStudyService {
 	public void update(Consent consent) throws ArkSystemException, EntityNotFoundException {
 		iStudyDao.update(consent);
 		createConsentHistory(consent);
-
-		AuditHistory ah = new AuditHistory();
-		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_UPDATED);
-		ah.setComment("Updated Consent " + consent.getId());
-		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_CONSENT);
-		ah.setEntityId(consent.getId());
-		iArkCommonService.createAuditHistory(ah);
 	}
 
 	public void update(Consent consent, boolean consentFile) throws ArkSystemException, EntityNotFoundException {
@@ -676,13 +594,6 @@ public class StudyServiceImpl implements IStudyService {
 			createConsentHistory(consent);
 		}
 		iStudyDao.update(consent);
-
-		AuditHistory ah = new AuditHistory();
-		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_UPDATED);
-		ah.setComment("Updated Consent " + consent.getId());
-		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_CONSENT);
-		ah.setEntityId(consent.getId());
-		iArkCommonService.createAuditHistory(ah);
 	}
 
 	private void createConsentHistory(Consent newConsent) {
@@ -713,13 +624,6 @@ public class StudyServiceImpl implements IStudyService {
 	 */
 	public void delete(Consent consent) throws ArkSystemException, EntityNotFoundException {
 		iStudyDao.delete(consent);
-
-		AuditHistory ah = new AuditHistory();
-		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_DELETED);
-		ah.setComment("Deleted Consent " + consent.getId());
-		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_CONSENT);
-		ah.setEntityId(consent.getId());
-		iArkCommonService.createAuditHistory(ah);
 	}
 
 	public Consent getConsent(Long id) throws ArkSystemException {
