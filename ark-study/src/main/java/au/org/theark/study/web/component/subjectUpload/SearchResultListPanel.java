@@ -18,22 +18,22 @@
  ******************************************************************************/
 package au.org.theark.study.web.component.subjectUpload;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.util.List;
+import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.shiro.SecurityUtils;
 import org.apache.wicket.AttributeModifier;
 import org.apache.wicket.ajax.AjaxRequestTarget;
 import org.apache.wicket.ajax.markup.html.form.AjaxButton;
+import org.apache.wicket.extensions.ajax.markup.html.modal.ModalWindow;
 import org.apache.wicket.markup.html.basic.Label;
 import org.apache.wicket.markup.html.form.Form;
-import org.apache.wicket.markup.html.link.Link;
 import org.apache.wicket.markup.html.list.ListItem;
 import org.apache.wicket.markup.html.list.PageableListView;
 import org.apache.wicket.markup.html.panel.FeedbackPanel;
@@ -45,7 +45,6 @@ import org.apache.wicket.request.handler.resource.ResourceStreamRequestHandler;
 import org.apache.wicket.request.resource.ContentDisposition;
 import org.apache.wicket.spring.injection.annot.SpringBean;
 import org.apache.wicket.util.file.Files;
-import org.apache.wicket.util.io.IOUtils;
 import org.apache.wicket.util.resource.FileResourceStream;
 import org.apache.wicket.util.resource.IResourceStream;
 import org.slf4j.Logger;
@@ -55,13 +54,19 @@ import com.x5.template.Chunk;
 import com.x5.template.Theme;
 
 import au.org.theark.core.Constants;
+import au.org.theark.core.model.study.entity.ConsentStatus;
+import au.org.theark.core.model.study.entity.ConsentType;
 import au.org.theark.core.model.study.entity.Payload;
+import au.org.theark.core.model.study.entity.Study;
+import au.org.theark.core.model.study.entity.StudyComp;
+import au.org.theark.core.model.study.entity.StudyCompStatus;
 import au.org.theark.core.model.study.entity.Upload;
 import au.org.theark.core.service.IArkCommonService;
 import au.org.theark.core.util.ByteDataResourceRequestHandler;
 import au.org.theark.core.vo.ArkCrudContainerVO;
 import au.org.theark.core.web.component.button.ArkDownloadTemplateButton;
-import au.org.theark.study.model.capsule.RelativeCapsule;
+import au.org.theark.core.web.component.panel.ConfirmationAnswer;
+import au.org.theark.core.web.component.panel.YesNoPanel;
 import au.org.theark.study.web.component.subjectUpload.form.ContainerForm;
 
 /**
@@ -78,15 +83,28 @@ public class SearchResultListPanel extends Panel {
 	private IArkCommonService<Void>			iArkCommonService;
 	
 	private transient Logger	log					= LoggerFactory.getLogger(SearchResultListPanel.class);
+	private ModalWindow 			confirmModal;
+	private ConfirmationAnswer		confirmationAnswer;
+	private final String modalText = "<p align='center'>You are about to delete the uploaded file </p>"
+			+ "</br>"
+			+"<p align='center'><b>*</b> (Attachment ID: <b>#</b>).</p>"
+			+ "</br>"
+			+ "<p align='center'> Data that were uploaded from this file will remain in The Ark; only the record of the upload process will be deleted.</p>"
+			+ "</br>"
+			+ "<p align='center'>Do you wish to continue?</p>"
+			+ "</br>";
+	private SearchResultListPanel me;
 
 	public SearchResultListPanel(String id, FeedbackPanel feedBackPanel, ContainerForm containerForm, ArkCrudContainerVO arkCrudContainerVO) {
 		super(id);
+		this.setOutputMarkupId(true);
+		me=this;
 		ArkDownloadTemplateButton downloadTemplateButton = new ArkDownloadTemplateButton("downloadTemplate", "SubjectUpload", au.org.theark.study.web.Constants.SUBJECT_TEMPLATE_CELLS) {
 			private static final long	serialVersionUID	= 1L;
 
 			@Override
 			protected void onError(AjaxRequestTarget target, Form<?> form) {
-				this.error("Unexpected Error: Could not proceed with download of the template.");
+				this.error("An unexpected error occurred. The system could not proceed with download of the template.");
 			}
 
 		};
@@ -95,16 +113,18 @@ public class SearchResultListPanel extends Panel {
 
 			@Override
 			protected void onError(AjaxRequestTarget target, Form<?> form) {
-				this.error("Unexpected Error: Could not proceed with download of the template.");
+				this.error("An unexpected error occurred. The system could not proceed with download of the template.");
 			}
 
 		};
-		ArkDownloadTemplateButton downloadConsentFieldTemplateButton = new ArkDownloadTemplateButton("downloadConsentFieldTemplate", "SubjectConsentFieldUpload", au.org.theark.study.web.Constants.SUBJECT_CONSENT_FIELD_TEMPLATE_CELLS) {
+		
+		ArkDownloadTemplateButton downloadConsentFieldTemplateButton = new ArkDownloadTemplateButton("downloadConsentFieldTemplate", "SubjectConsentFieldUpload", makeConsentTemplateSelectionValuesMorePrecise(au.org.theark.study.web.Constants.SUBJECT_CONSENT_FIELD_TEMPLATE_CELLS)) {
 			private static final long	serialVersionUID	= 1L;
 
 			@Override
 			protected void onError(AjaxRequestTarget target, Form<?> form) {
-				this.error("Unexpected Error: Could not proceed with download of the template.");
+				this.error("An unexpected error occurred. The system could not proceed with download of the template.");
+				
 			}
 
 		};
@@ -151,7 +171,7 @@ public class SearchResultListPanel extends Panel {
 
 			@Override
 			protected void onError(AjaxRequestTarget target, Form<?> form) {
-				this.error("Unexpected Error: Could not proceed with download of the template.");
+				this.error("An unexpected error occurred. The system could not proceed with download of the template.");
 			}
 		};
 		
@@ -160,10 +180,10 @@ public class SearchResultListPanel extends Panel {
 
 			@Override
 			protected void onError(AjaxRequestTarget target, Form<?> form) {
-				this.error("Unexpected Error: Could not proceed with download of the template.");
+				this.error("An unexpected error occurred. The system could not proceed with download of the template.");
 			}
 		};				
-		
+		initConfirmModel();
 		add(downloadTemplateButton);
 		add(downloadCustomFieldTemplateButton);
 		add(downloadConsentFieldTemplateButton);
@@ -178,7 +198,7 @@ public class SearchResultListPanel extends Panel {
 	 */
 	@SuppressWarnings("unchecked")
 	public PageableListView<Upload> buildPageableListView(IModel iModel) {
-		PageableListView<Upload> sitePageableListView = new PageableListView<Upload>(Constants.RESULT_LIST, iModel, iArkCommonService.getUserConfig(au.org.theark.core.Constants.CONFIG_ROWS_PER_PAGE).getIntValue()) {
+		PageableListView<Upload> sitePageableListView = new PageableListView<Upload>(Constants.RESULT_LIST, iModel, iArkCommonService.getRowsPerPage()) {
 			
 			private static final long	serialVersionUID	= 1L;
 
@@ -249,10 +269,9 @@ public class SearchResultListPanel extends Panel {
 
 				// Download upload report button
 				item.add(buildDownloadReportButton(upload));
-
-				// Delete the upload file
-				// item.add(buildDeleteButton(upload));
-
+				
+				item.add(buildDeleteUploadButton(upload));
+				
 				// For the alternative stripes
 				item.add(new AttributeModifier("class", new AbstractReadOnlyModel<String>() {
 
@@ -268,7 +287,7 @@ public class SearchResultListPanel extends Panel {
 		return sitePageableListView;
 	}
 
-	protected Link<Upload> buildDownloadLink(final Upload upload) {
+	/*protected Link<Upload> buildDownloadLink(final Upload upload) {
 		Link<Upload> link = new Link<Upload>(au.org.theark.study.web.Constants.DOWNLOAD_FILE) {
 
 			private static final long	serialVersionUID	= 1L;
@@ -286,7 +305,7 @@ public class SearchResultListPanel extends Panel {
 		link.add(nameLinkLabel);
 		return link;
 	}
-
+*/
 	private AjaxButton buildDownloadButton(final Upload upload) {
 		AjaxButton ajaxButton = new AjaxButton(au.org.theark.study.web.Constants.DOWNLOAD_FILE) {
 
@@ -302,7 +321,7 @@ public class SearchResultListPanel extends Panel {
 
 			@Override
 			protected void onError(AjaxRequestTarget target, Form<?> form) {
-				this.error("Unexpected Error: Could not process download request");
+				this.error("An unexpected error occurred. The system could not process download request");
 			};
 		};
 
@@ -324,7 +343,7 @@ public class SearchResultListPanel extends Panel {
 		return ajaxButton;
 	}
 
-	protected Link<Upload> buildDownloadReportLink(final Upload upload) {
+	/*protected Link<Upload> buildDownloadReportLink(final Upload upload) {
 		Link<Upload> link = new Link<Upload>(au.org.theark.study.web.Constants.UPLOADVO_UPLOAD_UPLOAD_REPORT) {
 
 			private static final long	serialVersionUID	= 1L;
@@ -340,7 +359,7 @@ public class SearchResultListPanel extends Panel {
 		Label nameLinkLabel = new Label("downloadReportLbl", "Download Report");
 		link.add(nameLinkLabel);
 		return link;
-	}
+	}*/
 
 	private AjaxButton buildDownloadReportButton(final Upload upload) {
 		AjaxButton ajaxButton = new AjaxButton(au.org.theark.study.web.Constants.UPLOADVO_UPLOAD_UPLOAD_REPORT) {
@@ -355,7 +374,7 @@ public class SearchResultListPanel extends Panel {
 
 			@Override
 			protected void onError(AjaxRequestTarget target, Form<?> form) {
-				this.error("Unexpected Error: Could not process download upload report request");
+				this.error("An unexpected error occurred. The system could not process download upload report request.");
 			};
 		};
 
@@ -366,6 +385,115 @@ public class SearchResultListPanel extends Panel {
 			ajaxButton.setVisible(false);
 
 		return ajaxButton;
+	}
+	/**
+	 * 
+	 * @param upload
+	 * @return
+	 */
+	private AjaxButton buildDeleteUploadButton(Upload upload){
+		AjaxButton ajaxButton = new AjaxButton(au.org.theark.core.Constants.DELETE_UPLOAD){
+			private static final long serialVersionUID = 1L;
+			@Override
+			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
+				updateModelAndVarifyForDeleteUpload(upload);
+				confirmModal.show(target);
+			}
+			@Override
+			protected void onError(AjaxRequestTarget target, Form<?> form) {
+				log.error("onError called when buildDeleteUploadButton pressed");
+			};
+		};
+		ajaxButton.setDefaultFormProcessing(false);
+		return ajaxButton;
+	}
+	/**
+	 * 
+	 * @param upload
+	 */
+	private void updateModelAndVarifyForDeleteUpload(Upload upload) {
+		confirmModal.setContent(new YesNoPanel(confirmModal.getContentId(), modalText.replace("*",upload.getFilename()).replace("#", " "+upload.getId()),"Warning", confirmModal, confirmationAnswer));
+		confirmModal.setWindowClosedCallback(new ModalWindow.WindowClosedCallback() {
+		private static final long serialVersionUID = 1L;
+			public void onClose(AjaxRequestTarget target) {
+				if (confirmationAnswer.isAnswer() ) {
+					iArkCommonService.deleteUpload(upload);
+					target.add(me);
+				} else {//if no nothing be done.Just close I guess
+				}
+			}
+		});
+		addOrReplace(confirmModal);
+	}
+	/**
+	 * initialise confirm model
+	 */
+	private void initConfirmModel(){
+		confirmationAnswer = new ConfirmationAnswer(false);
+		confirmModal = new ModalWindow("confirmModal");
+		confirmModal.setCookieName("yesNoPanel");
+		confirmModal.setContent(new YesNoPanel(confirmModal.getContentId(), modalText,"Warning", confirmModal, confirmationAnswer));
+		addOrReplace(confirmModal);
+	}
+	/**
+	 * Selection values for the consent template will be make more pricise and easy to select.
+	 * @param consentTemplate
+	 * @return
+	 */
+	private String[][] makeConsentTemplateSelectionValuesMorePrecise(String[][] consentTemplate){
+		
+		Long sessionStudyId = (Long) SecurityUtils.getSubject().getSession().getAttribute(au.org.theark.core.Constants.STUDY_CONTEXT_ID);
+		Study study = iArkCommonService.getStudy(sessionStudyId);
+		List<String> studyCompList =convertListOfObjectsToListOfString(iArkCommonService.getStudyComponentByStudy(study));
+		List<String> studyCompStatus=convertListOfObjectsToListOfString(iArkCommonService.getStudyComponentStatus());
+		List<String> consentTypes=convertListOfObjectsToListOfString(iArkCommonService.getConsentType());
+		List<String> consentStatus=convertListOfObjectsToListOfString(iArkCommonService.getConsentStatus());
+		
+		//Here we have to be careful not to use the reference object since it will destroy the original values
+		//So array copying will do the trick to keep the original values unchanged for other studies to use it.
+		String[][] newConsentTemplate=new String[consentTemplate.length][consentTemplate[1].length];
+		
+		arrayCopy(consentTemplate, newConsentTemplate);
+		
+		for (String[] mainArray : newConsentTemplate) {
+			for (String innerArray : mainArray) {
+				switch (innerArray) {
+				case "@CompName" :
+					mainArray[ArrayUtils.indexOf(mainArray, innerArray)]=mainArray[ArrayUtils.indexOf(mainArray, innerArray)].replace(innerArray, " ["+StringUtils.join(studyCompList,',')+"].");
+					break;
+				case "@CompNameStatus" :
+					mainArray[ArrayUtils.indexOf(mainArray, innerArray)]=mainArray[ArrayUtils.indexOf(mainArray, innerArray)].replace(innerArray, " ["+StringUtils.join(studyCompStatus,',')+"].");
+					break;
+				case "@ConsentName" :
+					mainArray[ArrayUtils.indexOf(mainArray, innerArray)]=mainArray[ArrayUtils.indexOf(mainArray, innerArray)].replace(innerArray, " ["+StringUtils.join(consentTypes,',')+"].");
+					break;
+				case "@ConsentStatus" :
+					mainArray[ArrayUtils.indexOf(mainArray, innerArray)]=mainArray[ArrayUtils.indexOf(mainArray, innerArray)].replace(innerArray, " ["+StringUtils.join(consentStatus,',')+"].");
+					break;
+				default:
+					break;
+				}
+			}
+		}
+		return newConsentTemplate;
+	}
+	/**
+	 * 
+	 * @param aSource
+	 * @param aDestination
+	 */
+	private void arrayCopy(String[][] aSource, String[][] aDestination) {
+	    for (int i = 0; i < aSource.length; i++) {
+	        System.arraycopy(aSource[i], 0, aDestination[i], 0, aSource[i].length);
+	    }
+	}
+	/**
+	 * Convert list of object values to their list of strings.
+	 * @param list
+	 * @return
+	 */
+	private List<String> convertListOfObjectsToListOfString(List<?> list){
+		return list.stream().map( Object::toString).collect( Collectors.toList() );
 	}
 
 	/*

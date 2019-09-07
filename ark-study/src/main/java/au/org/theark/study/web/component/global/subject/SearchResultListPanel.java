@@ -26,10 +26,12 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Set;
 
+import au.org.theark.core.util.EventPayload;
 import org.apache.shiro.SecurityUtils;
 import org.apache.wicket.AttributeModifier;
 import org.apache.wicket.ajax.AjaxRequestTarget;
 import org.apache.wicket.ajax.markup.html.AjaxLink;
+import org.apache.wicket.event.Broadcast;
 import org.apache.wicket.extensions.markup.html.tabs.ITab;
 import org.apache.wicket.extensions.markup.html.tabs.TabbedPanel;
 import org.apache.wicket.markup.html.WebMarkupContainer;
@@ -178,7 +180,7 @@ public class SearchResultListPanel extends Panel {
 		return studyCompDataView;
 	}
 
-	public DataView<SubjectVO> buildDataView(ArkDataProvider<SubjectVO, IArkCommonService> subjectProvider, final AbstractDetailModalWindow modalWindow, final List<RelationshipVo> relatives,
+	/*public DataView<SubjectVO> buildDataView(ArkDataProvider<SubjectVO, IArkCommonService> subjectProvider, final AbstractDetailModalWindow modalWindow, final List<RelationshipVo> relatives,
 			final FeedbackPanel feedbackPanel) {
 
 		DataView<SubjectVO> studyCompDataView = new DataView<SubjectVO>("subjectList", subjectProvider) {
@@ -188,14 +190,14 @@ public class SearchResultListPanel extends Panel {
 				LinkSubjectStudy subject = item.getModelObject().getLinkSubjectStudy();
 				item.add(buildLink(item, modalWindow, relatives, feedbackPanel));
 				item.add(new Label(Constants.SUBJECT_FULL_NAME, item.getModelObject().getSubjectFullName()));
-/*
+
 				if (subject != null && subject.getPerson() != null && subject.getPerson().getPreferredName() != null) {
 					item.add(new Label("linkSubjectStudy.person.preferredName", subject.getPerson().getPreferredName()));
 				}
 				else {
 					item.add(new Label("linkSubjectStudy.person.preferredName", ""));
 				}
-*/
+
 				List<PersonLastnameHistory> lastnameHistory = (List<PersonLastnameHistory>) iArkCommonService.getPersonLastNameHistory(subject.getPerson());
 				String lastNameString = "";
 				if(!lastnameHistory.isEmpty()) {
@@ -254,11 +256,11 @@ public class SearchResultListPanel extends Panel {
 			}
 		};
 		return studyCompDataView;
-	}
+	}*/
 
 	public PageableListView<SubjectVO> buildListView(IModel iModel) {
 
-		PageableListView<SubjectVO> listView = new PageableListView<SubjectVO>(Constants.SUBJECT_LIST, iModel, iArkCommonService.getUserConfig(au.org.theark.core.Constants.CONFIG_ROWS_PER_PAGE).getIntValue()) {
+		PageableListView<SubjectVO> listView = new PageableListView<SubjectVO>(Constants.SUBJECT_LIST, iModel, iArkCommonService.getRowsPerPage()) {
 
 			@Override
 			protected void populateItem(final ListItem<SubjectVO> item) {
@@ -365,10 +367,11 @@ public class SearchResultListPanel extends Panel {
 				ContextHelper contextHelper = new ContextHelper();
 				contextHelper.setStudyContextLabel(target, subjectFromBackend.getLinkSubjectStudy().getStudy().getName(), arkContextMarkup);
 				contextHelper.setSubjectContextLabel(target, subjectFromBackend.getLinkSubjectStudy().getSubjectUID(), arkContextMarkup);
+				contextHelper.setSubjectNameContextLabel(target, subjectFromBackend.getLinkSubjectStudy().getPerson().getFullName(), arkContextMarkup);
 
 				// Set Study Logo
 				StudyHelper studyHelper = new StudyHelper();
-				studyHelper.setStudyLogo(subjectFromBackend.getLinkSubjectStudy().getStudy(), target, studyNameMarkup, studyLogoMarkup);
+				studyHelper.setStudyLogo(subjectFromBackend.getLinkSubjectStudy().getStudy(), target, studyNameMarkup, studyLogoMarkup,iArkCommonService);
 				
 				//Move to subject Tab
 				ListIterator<ITab> lIter = mainTabs.getTabs().listIterator();
@@ -380,8 +383,9 @@ public class SearchResultListPanel extends Panel {
 						mainTabs.setSelectedTab(index);
 						break;
 					}
-				}				
+				}
 				target.add(mainTabs);
+				this.send(target.getPage(), Broadcast.DEPTH, new EventPayload(au.org.theark.core.Constants.EVENT_RELOAD_LOGO_IMAGES, target));
 			}
 		};
 		Label nameLinkLabel = new Label(Constants.SUBJECT_KEY_LBL, subject.getLinkSubjectStudy().getSubjectUID());
@@ -403,7 +407,8 @@ public class SearchResultListPanel extends Panel {
 			link = new AjaxConfirmLink(Constants.SUBJECT_UID, new StringResourceModel("pedigree.parent.dob.warning", this, item.getModel()),item.getModel()) {
 				@Override
 				public void onClick(AjaxRequestTarget target) {
-					processParentSelection(subject, modalWindow, relatives, feedbackPanel, target);	
+					processParentSelection(subject, modalWindow, relatives, feedbackPanel, target);
+					this.send(getWebPage(), Broadcast.DEPTH, new EventPayload(au.org.theark.core.Constants.EVENT_RELOAD_LOGO_IMAGES, target));
 				}
 			};
 		}
@@ -412,7 +417,8 @@ public class SearchResultListPanel extends Panel {
 				@Override
 				public void onClick(AjaxRequestTarget target) {
 					processParentSelection(subject, modalWindow, relatives, feedbackPanel, target);
-				}	
+					this.send(getWebPage(), Broadcast.DEPTH, new EventPayload(au.org.theark.core.Constants.EVENT_RELOAD_LOGO_IMAGES, target));
+				}
 			};
 		}
 		Label nameLinkLabel = new Label(Constants.SUBJECT_KEY_LBL, subject.getLinkSubjectStudy().getSubjectUID());

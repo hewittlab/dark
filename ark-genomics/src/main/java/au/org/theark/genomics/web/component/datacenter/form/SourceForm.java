@@ -40,6 +40,12 @@ public class SourceForm extends AbstractDetailForm<DataSourceVo> {
 	private TextField<String> dataSourceDataCenterTxtFld;
 	private DropDownChoice<DataSourceType> dataSourceTypesDDC;
 	private TextField<String> dataSourceStatusTxtFld;
+	
+	
+	private TextField<String> dataSourceOwnerTxtFld;
+	private TextField<String> dataSourceChipTxtFld;
+	private TextField<String> dataSourceSnpCountTxtFld;
+	private TextField<String> dataSourceSizeTxtFld;
 
 	private AbstractDetailModalWindow modalWindow;
 
@@ -82,6 +88,11 @@ public class SourceForm extends AbstractDetailForm<DataSourceVo> {
 
 		dataSourceStatusTxtFld = new TextField<String>(Constants.DATA_SOURCE_STATUS);
 		dataSourceStatusTxtFld.setEnabled(false);
+		
+		dataSourceOwnerTxtFld = new TextField<String>(Constants.DATA_SOURCE_OWNER) ;
+		dataSourceChipTxtFld = new TextField<String>(Constants.DATA_SOURCE_CHIP);
+		dataSourceSnpCountTxtFld = new TextField<String>(Constants.DATA_SOURCE_SNP_COUNT);
+		dataSourceSizeTxtFld = new TextField<String>(Constants.DATA_SOURCE_SIZE);
 
 		addDetailFormComponents();
 	}
@@ -105,28 +116,44 @@ public class SourceForm extends AbstractDetailForm<DataSourceVo> {
 	protected void onSave(Form<DataSourceVo> containerForm, AjaxRequestTarget target) {
 		if (cpModel.getObject().getDataSource().getId() == null) {
 			iGenomicService.saveOrUpdate(cpModel.getObject().getDataSource());
-			this.info("Data source was created successfully");
+			this.saveInformation();
+			//this.info("Data source was created successfully");
 		} else {
 			iGenomicService.saveOrUpdate(cpModel.getObject().getDataSource());
-			this.info("Data source was updated successfully");
+			this.updateInformation();
+			//this.info("Data source was updated successfully");
 		}
-		
+
 		processErrors(target);
-		
+
 		AjaxButton deleteButton = (AjaxButton) arkCrudContainerVO.getEditButtonContainer().get("delete");
 		deleteButton.setEnabled(true);
-		
+
 		target.add(arkCrudContainerVO.getDetailPanelContainer());
 		target.add(arkCrudContainerVO.getDetailPanelFormContainer());
 		target.add(arkCrudContainerVO.getEditButtonContainer());
 		target.add(feedBackPanel);
-		
+
 	}
 
 	@Override
-	protected void onDeleteConfirmed(AjaxRequestTarget target, String selection) {	
-		iGenomicService.delete(cpModel.getObject().getDataSource());
-		modalWindow.close(target);
+	protected void onDeleteConfirmed(AjaxRequestTarget target, String selection) {
+		iGenomicService.refreshDataSource(cpModel.getObject().getDataSource());
+		String status = cpModel.getObject().getDataSource().getStatus();
+
+		if (status != null && !(status.toLowerCase().startsWith("pro") || status.toLowerCase().startsWith("ready"))) {
+			int count = iGenomicService.getDataSourceCount(cpModel.getObject().getDataSource().getId());
+			if (count == 0) {
+				iGenomicService.delete(cpModel.getObject().getDataSource());
+				modalWindow.close(target);
+			} else {
+				this.error("Data Source is already attached to an analysis");
+				target.add(feedBackPanel);
+			}
+		} else {
+			this.error("Cannot delete online data source");
+			target.add(feedBackPanel);
+		}
 	}
 
 	@Override
@@ -138,8 +165,7 @@ public class SourceForm extends AbstractDetailForm<DataSourceVo> {
 	protected boolean isNew() {
 		if (cpModel.getObject().getDataSource().getId() == null) {
 			return true;
-		}
-		else {
+		} else {
 			return false;
 		}
 	}
@@ -154,6 +180,11 @@ public class SourceForm extends AbstractDetailForm<DataSourceVo> {
 		arkCrudContainerVO.getDetailPanelFormContainer().add(dataSourceDataCenterTxtFld);
 		arkCrudContainerVO.getDetailPanelFormContainer().add(dataSourceTypesDDC);
 		arkCrudContainerVO.getDetailPanelFormContainer().add(dataSourceStatusTxtFld);
+		
+		arkCrudContainerVO.getDetailPanelFormContainer().add(dataSourceOwnerTxtFld);
+		arkCrudContainerVO.getDetailPanelFormContainer().add(dataSourceChipTxtFld);
+		arkCrudContainerVO.getDetailPanelFormContainer().add(dataSourceSnpCountTxtFld);
+		arkCrudContainerVO.getDetailPanelFormContainer().add(dataSourceSizeTxtFld);
 	}
 
 }

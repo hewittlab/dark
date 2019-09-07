@@ -39,6 +39,7 @@ import javax.persistence.TemporalType;
 import javax.persistence.Transient;
 
 import org.hibernate.envers.Audited;
+import org.hibernate.envers.NotAudited;
 import org.hibernate.envers.RelationTargetAuditMode;
 
 import au.org.theark.core.Constants;
@@ -58,30 +59,30 @@ public class LinkSubjectStudy implements java.io.Serializable {
 	private SubjectStatus subjectStatus;
 	private Person person;
 	private String subjectUID;
+	private String familyUID;
+	private String naturalUID;
 	private ConsentOption consentToActiveContact;
 	private ConsentOption consentToPassiveDataGathering;
 	private ConsentOption consentToUseData;
+	private Date consentDateOfLastChange;
 	private ConsentStatus consentStatus;
 	private ConsentType consentType;
 	private Date consentDate;
+	private Date consentExpiryDate;
 	private String heardAboutStudy;
 	private String comment;
 	private YesNo consentDownloaded;
 	private Boolean updateConsent;
-
 	private Set<Consent> consents = new HashSet<Consent>();
 	private Set<SubjectCustomFieldData> subjectCustomFieldDataSet = new HashSet<SubjectCustomFieldData>();
 	private Set<LinkSubjectTwin> linkSubjectTwinsAsFirstSubject=new HashSet<LinkSubjectTwin>(0);
 	private Set<LinkSubjectTwin> linkSubjectTwinsAsSecondSubject=new HashSet<LinkSubjectTwin>(0);
-	
 	public LinkSubjectStudy() {
 		person = new Person();
 	}
-
 	public LinkSubjectStudy(Long id) {
 		this.id = id;
 	}
-
 	public LinkSubjectStudy(Long id, Study study, SubjectStatus subjectStatus,
 			Person person, Set<SubjectCustomFieldData> subjectCustomFieldDataSet) {
 		this.id = id;
@@ -91,38 +92,40 @@ public class LinkSubjectStudy implements java.io.Serializable {
 		this.subjectCustomFieldDataSet = subjectCustomFieldDataSet;
 
 	}
-
 	@OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY, mappedBy = "linkSubjectStudy")
 	public Set<SubjectCustomFieldData> getSubjectCustomFieldDataSet() {
 		return subjectCustomFieldDataSet;
 	}
-
 	public void setSubjectCustomFieldDataSet(
 			Set<SubjectCustomFieldData> subjectCustomFieldDataSet) {
 		this.subjectCustomFieldDataSet = subjectCustomFieldDataSet;
 	}
-
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "CONSENT_TO_PASSIVE_DATA_GATHERING_ID")
 	public ConsentOption getConsentToPassiveDataGathering() {
 		return consentToPassiveDataGathering;
 	}
-
 	public void setConsentToPassiveDataGathering(
 			ConsentOption consentToPassiveDataGathering) {
 		this.consentToPassiveDataGathering = consentToPassiveDataGathering;
 	}
-
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "CONSENT_TO_USE_DATA_ID")
 	public ConsentOption getConsentToUseData() {
 		return consentToUseData;
 	}
-
+	
+	@Temporal(TemporalType.DATE)
+	@Column(name = "CONSENT_DATE_OF_CHANGE", length = 7)
+	public Date getConsentDateOfLastChange() {
+		return consentDateOfLastChange;
+	}
+	public void setConsentDateOfLastChange(Date consentDateOfLastChange) {
+		this.consentDateOfLastChange = consentDateOfLastChange;
+	}
 	public void setConsentToUseData(ConsentOption consentToUseData) {
 		this.consentToUseData = consentToUseData;
 	}
-
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "CONSENT_TO_ACTIVE_CONTACT_ID")
 	public ConsentOption getConsentToActiveContact() {
@@ -164,7 +167,7 @@ public class LinkSubjectStudy implements java.io.Serializable {
 	public void setSubjectStatus(SubjectStatus subjectStatus) {
 		this.subjectStatus = subjectStatus;
 	}
-
+	
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "PERSON_ID")
 	public Person getPerson() {
@@ -174,7 +177,6 @@ public class LinkSubjectStudy implements java.io.Serializable {
 	public void setPerson(Person person) {
 		this.person = person;
 	}
-
 	@ArkAuditDisplay
 	@Column(name = "SUBJECT_UID", length = 50)
 	public String getSubjectUID() {
@@ -184,7 +186,22 @@ public class LinkSubjectStudy implements java.io.Serializable {
 	public void setSubjectUID(String subjectUID) {
 		this.subjectUID = subjectUID;
 	}
-
+	
+	@Column(name = "FAMILY_UID", length = 50)
+	public String getFamilyUID() {
+		return familyUID;
+	}
+	public void setFamilyUID(String familyUID) {
+		this.familyUID = familyUID;
+	}
+	@NotAudited
+	@Column(name = "NATURAL_UID", length = 100)
+	public String getNaturalUID() {
+		return naturalUID;
+	}
+	public void setNaturalUID(String naturalUID) {
+		this.naturalUID = naturalUID;
+	}
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "CONSENT_STATUS_ID")
 	public ConsentStatus getConsentStatus() {
@@ -214,7 +231,15 @@ public class LinkSubjectStudy implements java.io.Serializable {
 	public void setConsentDate(Date consentDate) {
 		this.consentDate = consentDate;
 	}
-
+		
+	@Temporal(TemporalType.DATE)
+	@Column(name = "CONSENT_EXPIRY_DATE", length = 7)
+	public Date getConsentExpiryDate() {
+		return consentExpiryDate;
+	}
+	public void setConsentExpiryDate(Date consentExpiryDate) {
+		this.consentExpiryDate = consentExpiryDate;
+	}
 	@OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY, mappedBy = "linkSubjectStudy")
 	public Set<Consent> getConsents() {
 		return consents;
@@ -286,8 +311,6 @@ public class LinkSubjectStudy implements java.io.Serializable {
 			Set<LinkSubjectTwin> linkSubjectTwinsAsSecondSubject) {
 		this.linkSubjectTwinsAsSecondSubject = linkSubjectTwinsAsSecondSubject;
 	}
-	
-	
 	@Override
 	public int hashCode() {
 		final int prime = 31;
@@ -326,7 +349,6 @@ public class LinkSubjectStudy implements java.io.Serializable {
 				+ ((subjectUID == null) ? 0 : subjectUID.hashCode());
 		return result;
 	}
-
 	@Override
 	public boolean equals(Object obj) {
 		if (this == obj)

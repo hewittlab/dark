@@ -22,6 +22,7 @@ import java.util.List;
 
 import org.apache.shiro.SecurityUtils;
 import org.apache.wicket.Component;
+import org.apache.wicket.Session;
 import org.apache.wicket.ajax.AjaxRequestTarget;
 import org.apache.wicket.behavior.Behavior;
 import org.apache.wicket.markup.ComponentTag;
@@ -44,6 +45,7 @@ import au.org.theark.core.security.ArkPermissionHelper;
 import au.org.theark.core.service.IArkCommonService;
 import au.org.theark.core.vo.AddressVO;
 import au.org.theark.core.vo.ContactVO;
+import au.org.theark.core.vo.EmailAccountVo;
 import au.org.theark.core.vo.PhoneVO;
 import au.org.theark.core.web.component.AbstractContainerPanel;
 import au.org.theark.core.web.component.button.ArkBusyAjaxButton;
@@ -65,10 +67,13 @@ public class ContactContainerPanel extends AbstractContainerPanel<ContactVO> {
 	private ContainerForm					containerForm;
 	private PhoneDetailPanel				phoneDetailPanel;
 	private AddressDetailPanel			addressDetailPanel;
+	private EmailDetailPanel			emailDetailPanel;
 	private PhoneListPanel 				phoneResultPanel; 
 	private AddressListPanel 			addressResultPanel;
+	private EmailListPanel				emailResultPanel;
 	protected ArkBusyAjaxButton		newPhoneButton;
 	protected ArkBusyAjaxButton		newAddressButton;
+	protected ArkBusyAjaxButton		newEmailButton;
 
 	/**
 	 * @param id
@@ -92,12 +97,19 @@ public class ContactContainerPanel extends AbstractContainerPanel<ContactVO> {
 	protected WebMarkupContainer initialiseDetailPanel() {
 		phoneDetailPanel = new PhoneDetailPanel("phoneDetailPanel", feedBackPanel, arkCrudContainerVO, containerForm);
 		phoneDetailPanel.setOutputMarkupId(true);
+		phoneDetailPanel.setOutputMarkupPlaceholderTag(true);
 		phoneDetailPanel.initialisePanel();
 		arkCrudContainerVO.getDetailPanelContainer().add(phoneDetailPanel);
 		addressDetailPanel = new AddressDetailPanel("addressDetailPanel", feedBackPanel, arkCrudContainerVO, containerForm);
 		addressDetailPanel.setOutputMarkupId(true);
+		addressDetailPanel.setOutputMarkupPlaceholderTag(true);
 		addressDetailPanel.initialisePanel();
 		arkCrudContainerVO.getDetailPanelContainer().add(addressDetailPanel);
+		emailDetailPanel = new EmailDetailPanel("emailDetailPanel", feedBackPanel, arkCrudContainerVO, containerForm);
+		emailDetailPanel.setOutputMarkupId(true);
+		emailDetailPanel.setOutputMarkupPlaceholderTag(true);
+		emailDetailPanel.initialisePanel();
+		arkCrudContainerVO.getDetailPanelContainer().add(emailDetailPanel);
 		return arkCrudContainerVO.getDetailPanelContainer();
 	}
 	
@@ -106,7 +118,7 @@ public class ContactContainerPanel extends AbstractContainerPanel<ContactVO> {
 	 * @return
 	 */
 	private void initialiseSearchAddressResults() {
-		 addressResultPanel = new AddressListPanel("addressResults", arkCrudContainerVO, containerForm);
+		 addressResultPanel = new AddressListPanel("addressResults", arkCrudContainerVO, containerForm, feedBackPanel);
 		 addressResultPanel.setOutputMarkupId(true);
 		 arkCrudContainerVO.getSearchResultPanelContainer().add(addressResultPanel);
 	}
@@ -116,10 +128,17 @@ public class ContactContainerPanel extends AbstractContainerPanel<ContactVO> {
 	 * @return
 	 */
 	private void initialiseSearchPhoneResults() {
-		phoneResultPanel = new PhoneListPanel("phoneResults", arkCrudContainerVO, containerForm);
+		phoneResultPanel = new PhoneListPanel("phoneResults", arkCrudContainerVO, containerForm, feedBackPanel);
 		phoneResultPanel.setOutputMarkupId(true);
 		arkCrudContainerVO.getSearchResultPanelContainer().add(phoneResultPanel);
 	}
+	
+	private void initialiseSearchEmailResults() {
+		emailResultPanel = new EmailListPanel("emailResults", arkCrudContainerVO, containerForm, feedBackPanel);
+		emailResultPanel.setOutputMarkupId(true);
+		arkCrudContainerVO.getSearchResultPanelContainer().add(emailResultPanel);
+	}
+	
 
 	/**
 	 * There is no Search Panel in the contact container but we can use the 
@@ -127,15 +146,18 @@ public class ContactContainerPanel extends AbstractContainerPanel<ContactVO> {
 	 * 1.New phone button
 	 * 2.New Address button.
 	 * 3.Phone List
-	 * 4.Address List 
+	 * 4.Address List
+	 * 5. Email List 
 	 */
 	@Override
 	protected WebMarkupContainer initialiseSearchResults() {
 		boolean contextLoaded = prerenderContextCheck();
 		initialiseNewPhoneButton();
 		initialiseNewAddressButton();
+		initialiseNewEmailButton();
 		initialiseSearchPhoneResults();
 		initialiseSearchAddressResults();
+		initialiseSearchEmailResults();
 		if (!contextLoaded) {
 			this.error(au.org.theark.core.Constants.MESSAGE_NO_SUBJECT_IN_CONTEXT);
 		}	
@@ -157,11 +179,13 @@ public class ContactContainerPanel extends AbstractContainerPanel<ContactVO> {
 			}
 			@Override
 			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
+				Session.get().cleanupFeedbackMessages();
+				target.add(feedBackPanel);
 				onPhoneNew(target);
 			}
 			@Override
 			protected void onError(AjaxRequestTarget target, Form<?> form) {
-				this.error("Unexpected error: Unable to proceed with New");
+				this.error("An unexpected error occurred. Unable to proceed with new.");
 			}
 		};
 		newPhoneButton.setDefaultFormProcessing(false);
@@ -184,16 +208,47 @@ public class ContactContainerPanel extends AbstractContainerPanel<ContactVO> {
 			}
 			@Override
 			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
+				Session.get().cleanupFeedbackMessages();
+				target.add(feedBackPanel);
 				onAddressNew(target);
 			}
 			@Override
 			protected void onError(AjaxRequestTarget target, Form<?> form) {
-				this.error("Unexpected error: Unable to proceed with New");
+				this.error("An unexpected error occurred. Unable to proceed with new.");
 			}
 		};
 		newAddressButton.setDefaultFormProcessing(false);
 		arkCrudContainerVO.getSearchResultPanelContainer().add(newAddressButton);
 	}
+	
+	/**
+	 *  Initialize email button.
+	 */
+	private void initialiseNewEmailButton() {
+		newEmailButton = new ArkBusyAjaxButton("newEmailButton") {
+			private static final long	serialVersionUID	= 1L;
+			@Override
+			public boolean isVisible() {
+				boolean isVisible = true;
+				String sessionSubjectUID = (String) SecurityUtils.getSubject().getSession().getAttribute(au.org.theark.core.Constants.SUBJECTUID);
+				isVisible = (ArkPermissionHelper.isActionPermitted(au.org.theark.core.Constants.NEW) && sessionSubjectUID != null);
+				return isVisible;
+			}
+			@Override
+			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
+				Session.get().cleanupFeedbackMessages();
+				target.add(feedBackPanel);
+				onEmailNew(target);
+			}
+			@Override
+			protected void onError(AjaxRequestTarget target, Form<?> form) {
+				this.error("An unexpected error occurred. Unable to proceed with new.");
+			}
+		};
+		newEmailButton.setDefaultFormProcessing(false);
+		arkCrudContainerVO.getSearchResultPanelContainer().add(newEmailButton);
+	}
+	
 	/**
 	 * Event to press new button under the phoneList.
 	 * @param target
@@ -210,6 +265,12 @@ public class ContactContainerPanel extends AbstractContainerPanel<ContactVO> {
 		preSetAdddressFormBeforeVisible();
 		switchBetweenPanels(target,au.org.theark.study.web.Constants.ADDRESS_DETAIL_PANEL);
 	}
+	
+	private void onEmailNew(AjaxRequestTarget target){
+		preSetEmailFormBeforeVisible();
+		switchBetweenPanels(target,au.org.theark.study.web.Constants.EMAIL_DETAIL_PANEL);
+	}
+
 	/**
 	 * Switching the loaded panel according to the button click.
 	 * @param target
@@ -218,9 +279,11 @@ public class ContactContainerPanel extends AbstractContainerPanel<ContactVO> {
 	private void switchBetweenPanels(AjaxRequestTarget target, String type){
 		
 		Component  addressDetailPanelComp=arkCrudContainerVO.getDetailPanelContainer().get(au.org.theark.study.web.Constants.ADDRESS_DETAIL_PANEL);
-					 addressDetailPanelComp.setOutputMarkupId(true);
+		addressDetailPanelComp.setOutputMarkupId(true);
 		Component  phoneDetailPanelComp=arkCrudContainerVO.getDetailPanelContainer().get(au.org.theark.study.web.Constants.PHONE_DETAIL_PANEL);
-						phoneDetailPanelComp.setOutputMarkupId(true);
+		phoneDetailPanelComp.setOutputMarkupId(true);
+		Component  emailDetailPanelComp=arkCrudContainerVO.getDetailPanelContainer().get(au.org.theark.study.web.Constants.EMAIL_DETAIL_PANEL);
+		emailDetailPanelComp.setOutputMarkupId(true);				
 		arkCrudContainerVO.getDetailPanelContainer().setVisible(true);
 		arkCrudContainerVO.getDetailPanelContainer().setEnabled(true);
 		arkCrudContainerVO.getDetailPanelFormContainer().setVisible(true);
@@ -228,9 +291,15 @@ public class ContactContainerPanel extends AbstractContainerPanel<ContactVO> {
 		if(au.org.theark.study.web.Constants.PHONE_DETAIL_PANEL.equals(type)){
 			phoneDetailPanelComp.setVisible(true);
 			addressDetailPanelComp.setVisible(false);
+			emailDetailPanelComp.setVisible(false);
 		}else if(au.org.theark.study.web.Constants.ADDRESS_DETAIL_PANEL.equals(type)){
 			phoneDetailPanelComp.setVisible(false);
 			addressDetailPanelComp.setVisible(true);
+			emailDetailPanelComp.setVisible(false);
+		}else if(au.org.theark.study.web.Constants.EMAIL_DETAIL_PANEL.equals(type)){
+			phoneDetailPanelComp.setVisible(false);
+			addressDetailPanelComp.setVisible(false);
+			emailDetailPanelComp.setVisible(true);
 		}
 		arkCrudContainerVO.getSearchResultPanelContainer().setVisible(false);
 		arkCrudContainerVO.getEditButtonContainer().setVisible(true);
@@ -240,6 +309,7 @@ public class ContactContainerPanel extends AbstractContainerPanel<ContactVO> {
 		target.add(arkCrudContainerVO.getDetailPanelFormContainer());  
 		target.add(addressDetailPanelComp);
 		target.add(phoneDetailPanelComp);
+		target.add(emailDetailPanelComp);
 		target.add(arkCrudContainerVO.getSearchResultPanelContainer());
 		target.add(arkCrudContainerVO.getSearchPanelContainer());
 		target.add(arkCrudContainerVO.getViewButtonContainer());
@@ -289,7 +359,8 @@ public class ContactContainerPanel extends AbstractContainerPanel<ContactVO> {
 		// Ensure we update the CountyStateChoices in DetailsForm
 		// like what happens via DetailForm's updateStateChoices(..)
 		List<State> stateList = iArkCommonService.getStates(address.getCountry());
-		WebMarkupContainer wmcStateSelector = (WebMarkupContainer) arkCrudContainerVO.getDetailPanelFormContainer().get(Constants.STATE_SELECTOR_WMC);
+
+		WebMarkupContainer wmcStateSelector = (WebMarkupContainer) arkCrudContainerVO.getDetailPanelContainer().get("addressDetailPanel").get("addressDetailsForm").get("addressDetailFormContainer").get(Constants.STATE_SELECTOR_WMC);
 		DropDownChoice<State> detailStateSelector = (DropDownChoice<State>) wmcStateSelector.get("addressVo.address.state");
 		Label otherStateInvalidError = (Label) wmcStateSelector.get("addressVo.address.otherStateInvalidError");
 		TextField<String> otherState = (TextField<String>) wmcStateSelector.get("addressVo.address.otherState");
@@ -385,6 +456,22 @@ public class ContactContainerPanel extends AbstractContainerPanel<ContactVO> {
 		}
 		if(phoneVo.getPhoneList().size() == 0) {
 			phoneVo.getPhone().setPreferredPhoneNumber(true);
+		}
+	}
+	
+	private void preSetEmailFormBeforeVisible(){
+		EmailAccountVo emailVo=cpModel.getObject().getEmailAccountVo();
+
+		// Force new address to be preferred if totally new address
+		Long sessionPersonId = (Long) SecurityUtils.getSubject().getSession().getAttribute(au.org.theark.core.Constants.PERSON_CONTEXT_ID);
+		try {
+			emailVo.setEmailAccountList(studyService.getPersonEmailAccountList(sessionPersonId));
+		}
+		catch (ArkSystemException e) {
+			e.printStackTrace();
+		}
+		if(emailVo.getEmailAccountList().size() == 0) {
+			emailVo.getEmailAccount().setPrimaryAccount(true);
 		}
 	}
 	

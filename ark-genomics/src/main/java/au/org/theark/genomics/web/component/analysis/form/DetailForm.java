@@ -18,6 +18,7 @@ import org.apache.wicket.markup.html.form.upload.FileUpload;
 import org.apache.wicket.markup.html.form.upload.FileUploadField;
 import org.apache.wicket.markup.html.panel.FeedbackPanel;
 import org.apache.wicket.model.Model;
+import org.apache.wicket.model.StringResourceModel;
 import org.apache.wicket.spring.injection.annot.SpringBean;
 import org.slf4j.Logger;
 
@@ -95,21 +96,21 @@ public class DetailForm extends AbstractDetailForm<AnalysisVo> {
 		this.analysisDescTxtArea = new TextArea<String>(Constants.ANALYIS_DESCRIPTION);
 		this.analysisStatusLbl = new Label(Constants.ANALYIS_STATUS);
 		this.analysisStatusLbl.setOutputMarkupId(true);
-//		this.analysisStatusLbl.setEnabled(false);
+		// this.analysisStatusLbl.setEnabled(false);
 
 		this.parametersTxtArea = new TextArea<String>(Constants.ANALYIS_PARAMETERS);
 		this.resultTxtFld = new TextField<String>(Constants.ANALYIS_RESULT);
-		
-		this.analysisJobIdLbl =  new Label(Constants.ANALYIS_JOB_ID);
+
+		this.analysisJobIdLbl = new Label(Constants.ANALYIS_JOB_ID);
 		this.analysisJobIdLbl.setOutputMarkupId(true);
-//		this.analysisJobIdLbl.setEnabled(false);
+		// this.analysisJobIdLbl.setEnabled(false);
 
 		this.initMicroServiceDropDown();
 		this.initDataSourceDropDown();
 		this.initComputationDropDown();
-		
+
 		fileUploadField = new FileUploadField("file");
-		//fileUploadField.setOutputMarkupId(true);
+		// fileUploadField.setOutputMarkupId(true);
 
 		fileNameLbl = new Label(Constants.ANALYIS_SCRIPT_NAME);
 		fileNameLbl.setOutputMarkupId(true);
@@ -157,8 +158,8 @@ public class DetailForm extends AbstractDetailForm<AnalysisVo> {
 		};
 		deleteButton.add(new AttributeModifier("title", new Model<String>("Delete Attachment")));
 		deleteButton.setOutputMarkupId(true);
-		
 
+		//TODO Deprecated button
 		this.executeButton = new AjaxButton("execute") {
 			@Override
 			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
@@ -178,7 +179,7 @@ public class DetailForm extends AbstractDetailForm<AnalysisVo> {
 					executor.run();
 
 				} catch (Exception e) {
-					this.error("Execution failled");
+					this.error("An unexpected error occurred. Execution failed.");
 					e.printStackTrace();
 				}
 
@@ -186,22 +187,45 @@ public class DetailForm extends AbstractDetailForm<AnalysisVo> {
 				target.add(feedBackPanel);
 			}
 		};
+		this.executeButton.setVisible(false);
 
+		//TODO Download the results
 		this.resultButton = new AjaxButton("result") {
 			@Override
 			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
-				Analysis analysis = getFormModelObject().getAnalysis();
-				byte[] data = iGenomicService.getAnalysisResult(analysis);
-				String output = null;
-				if (analysis.getResult() == null) {
-					output = "" + analysis.getId() + "results.txt";
-				} else {
-					output = analysis.getResult();
+				try {
+					Analysis analysis = getFormModelObject().getAnalysis();
+					byte[] data = iGenomicService.getAnalysisResult(analysis);
+					String output = null;
+					if (analysis.getResult() == null) {
+						output = "" + analysis.getId() + "results.txt";
+					} else {
+						output = analysis.getResult();
+					}
+					getRequestCycle().scheduleRequestHandlerAfterCurrent(new au.org.theark.core.util.ByteDataResourceRequestHandler("", data, output));
+				} catch (Exception e) {
+					this.error("An unexpected error occurred. Results download failed.");
+					e.printStackTrace();
 				}
-				getRequestCycle().scheduleRequestHandlerAfterCurrent(new au.org.theark.core.util.ByteDataResourceRequestHandler("", data, output));
+				target.add(feedBackPanel);
+				target.add(resultButton);
 			}
+
+			@Override
+			public boolean isEnabled() {
+				boolean enabled = false;
+				Analysis analysis = getFormModelObject().getAnalysis();
+				if (Constants.STATUS_COMPLETED.equalsIgnoreCase(analysis.getStatus())) {
+					enabled = true;
+				}
+				return enabled;
+			}
+
 		};
-		
+		this.resultButton.setOutputMarkupId(true);
+		this.resultButton.setVisible(false);
+
+		//TODO Deprecated button
 		this.jobButton = new AjaxButton("job") {
 			@Override
 			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
@@ -212,11 +236,11 @@ public class DetailForm extends AbstractDetailForm<AnalysisVo> {
 					String status = iGenomicService.submitJob(analysis);
 
 					analysis.setStatus(status);
-					
+
 					iGenomicService.saveOrUpdate(analysis);
 
 				} catch (Exception e) {
-					this.error("Execution failled");
+					this.error("An unexpected error occurred. Execution failed.");
 					e.printStackTrace();
 				}
 
@@ -224,7 +248,9 @@ public class DetailForm extends AbstractDetailForm<AnalysisVo> {
 				target.add(feedBackPanel);
 			}
 		};
-		
+		this.jobButton.setVisible(false);
+
+		//TODO Execute the analysis
 		this.queueButton = new AjaxButton("queue") {
 			@Override
 			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
@@ -233,22 +259,36 @@ public class DetailForm extends AbstractDetailForm<AnalysisVo> {
 					Analysis analysis = getFormModelObject().getAnalysis();
 
 					iGenomicService.submitToQueue(analysis);
-					
+
 					QueueExecutor executor = new QueueExecutor(analysis, iGenomicService);
 
 					executor.run();
 
 				} catch (Exception e) {
-					this.error("Execution failled");
+					this.error("An unexpected error occurred. Analysis execution failed.");
 					e.printStackTrace();
 				}
 
 				target.add(analysisStatusLbl);
 				target.add(analysisJobIdLbl);
 				target.add(feedBackPanel);
+				target.add(queueButton);
+				target.add(resultButton);
+			}
+
+			@Override
+			public boolean isEnabled() {
+				boolean enabled = false;
+				Analysis analysis = getFormModelObject().getAnalysis();
+				if (analysis.getId() != null && Constants.STATUS_UNDEFINED.equalsIgnoreCase(analysis.getStatus())) {
+					enabled = true;
+				}
+				return enabled;
 			}
 		};
-
+		this.queueButton.setOutputMarkupId(true);
+		this.queueButton.setVisible(false);
+		
 		addDetailFormComponents();
 		attachValidators();
 	}
@@ -280,7 +320,7 @@ public class DetailForm extends AbstractDetailForm<AnalysisVo> {
 	}
 
 	private void initDataSourceDropDown() {
-		ChoiceRenderer defaultChoiceRenderer = new ChoiceRenderer(Constants.NAME, Constants.ID);
+		ChoiceRenderer defaultChoiceRenderer = new ChoiceRenderer(Constants.PATH, Constants.ID);
 		this.dataSourcesDDC = new DropDownChoice<DataSource>(Constants.ANALYIS_DATA_SOURCE, new ArrayList<DataSource>(), defaultChoiceRenderer);
 
 	}
@@ -288,18 +328,15 @@ public class DetailForm extends AbstractDetailForm<AnalysisVo> {
 	private void initComputationDropDown() {
 		ChoiceRenderer defaultChoiceRenderer = new ChoiceRenderer(Constants.NAME, Constants.ID);
 		this.computationsDDC = new DropDownChoice<Computation>(Constants.ANALYIS_COMPUTAION, new ArrayList<Computation>(), defaultChoiceRenderer);
+		this.computationsDDC.setOutputMarkupId(true);
 	}
 
 	@Override
 	protected void attachValidators() {
-		// microServiceNameTxtFld.setRequired(true).setLabel(new
-		// StringResourceModel(Constants.ERROR_MICRO_SERVICE_NAME_REQUIRED,
-		// microServiceNameTxtFld, new
-		// Model<String>(Constants.ERROR_MICRO_SERVICE_NAME_TAG)));
-		// microServiceTxtArea.setRequired(true).setLabel(new
-		// StringResourceModel(Constants.ERROR_MICRO_SERVICE_URL_REQUIRED,
-		// microServiceNameTxtFld, new
-		// Model<String>(Constants.ERROR_MICRO_SERVICE_URL_TAG)));
+		analysisNameTxtFld.setRequired(true).setLabel(new StringResourceModel(Constants.ERROR_ANALYSIS_NAME_REQUIRED, analysisNameTxtFld, new Model<String>(Constants.ERROR_ANALYSIS_NAME_TAG)));
+		microServicesDDC.setRequired(true).setLabel(new StringResourceModel(Constants.ERROR_ANALYSIS_MICROSERVICE_REQUIRED, microServicesDDC, new Model<String>(Constants.ERROR_ANALYSIS_MICROSERVICE_TAG)));
+//		computationsDDC.setRequired(true).setLabel(new StringResourceModel(Constants.ERROR_ANALYSIS_COMPUTATION_REQUIRED, computationsDDC, new Model<String>(Constants.ERROR_ANALYSIS_COMPUTATION_TAG)));
+
 	}
 
 	@Override
@@ -310,65 +347,67 @@ public class DetailForm extends AbstractDetailForm<AnalysisVo> {
 
 	@Override
 	protected void onSave(Form<AnalysisVo> containerForm, AjaxRequestTarget target) {
-//		iGenomicService.saveOrUpdate(containerForm.getModelObject().getAnalysis());
-		try {			
-			if (containerForm.getModelObject().getAnalysis().getId() == null) {		
-				
-				byte[] uploadData=null;
-				
+		// iGenomicService.saveOrUpdate(containerForm.getModelObject().getAnalysis());
+		try {
+			if (containerForm.getModelObject().getAnalysis().getId() == null) {
+
+				byte[] uploadData = null;
+
 				if (fileUploadField != null && fileUploadField.getFileUpload() != null) {
 					FileUpload fileUpload = fileUploadField.getFileUpload();
-					
+
 					byte[] byteArray = fileUpload.getMD5();
 					String checksum = getHex(byteArray);
 					uploadData = fileUpload.getBytes();
 					containerForm.getModelObject().getAnalysis().setScriptName(fileUpload.getClientFileName());
 					containerForm.getModelObject().getAnalysis().setChecksum(checksum);
 				}
-				
-				this.iGenomicService.save(containerForm.getModelObject().getAnalysis(),uploadData);
-				this.info("Computation " + containerForm.getModelObject().getAnalysis().getName() + " was created successfully");				
+
+				this.iGenomicService.save(containerForm.getModelObject().getAnalysis(), uploadData);
+				this.saveInformation();
+				//this.info("Computation " + containerForm.getModelObject().getAnalysis().getName() + " was created successfully");
 			} else {
-				
-				String checksum=null;
-				byte[] uploadData=null;
-				
+
+				String checksum = null;
+				byte[] uploadData = null;
+
 				if (fileUploadField != null && fileUploadField.getFileUpload() != null) {
 					// retrieve file and store as Blob in database
 					FileUpload fileUpload = fileUploadField.getFileUpload();
-					
+
 					byte[] byteArray = fileUpload.getMD5();
 					checksum = getHex(byteArray);
 					uploadData = fileUpload.getBytes();
 					containerForm.getModelObject().getAnalysis().setScriptName(fileUpload.getClientFileName());
 				}
-				
-				iGenomicService.update(containerForm.getModelObject().getAnalysis(),uploadData,checksum);
-				this.info("Computation " + containerForm.getModelObject().getAnalysis().getName() + " was updated successfully");
+
+				iGenomicService.update(containerForm.getModelObject().getAnalysis(), uploadData, checksum);
+				this.updateInformation();
+				//this.info("Computation " + containerForm.getModelObject().getAnalysis().getName() + " was updated successfully");
 			}
+			target.add(queueButton);
 			processErrors(target);
 			onSavePostProcess(target);
+			target.add(arkCrudContainerVO.getEditButtonContainer());
 		} catch (Exception e) {
 			log.error("Error in saving micro service entity ", e);
-			this.error("A System error occured, we will have someone contact you.");
+			this.error("A system error occurred. Please contact the system administrator.");
 			processErrors(target);
 		}
 	}
 
 	@Override
 	protected void onDeleteConfirmed(AjaxRequestTarget target, String selection) {
-		// try {
-		//
-		// iGenomicService.delete(containerForm.getModelObject().getComputation());
-		// ComputationVo computaionVo = new ComputationVo();
-		// containerForm.setModelObject(computaionVo);
-		// containerForm.info("Computation was deleted successfully.");
-		// editCancelProcess(target);
-		//
-		// } catch (Exception e) {
-		// containerForm.error("A System Error has occured please contact support.");
-		// processErrors(target);
-		// }
+		Analysis analysis = containerForm.getModelObject().getAnalysis();
+		if (Constants.STATUS_UNDEFINED.equals(analysis.getStatus())) {
+			iGenomicService.delete(analysis);
+			this.deleteInformation();
+			//containerForm.info("Analysis was deleted successfully.");
+			editCancelProcess(target);
+		} else {
+			containerForm.error("An unexpected error occurred. Unable to delete analysis submitted to process.");
+			processErrors(target);
+		}
 
 	}
 
@@ -399,14 +438,14 @@ public class DetailForm extends AbstractDetailForm<AnalysisVo> {
 		arkCrudContainerVO.getDetailPanelFormContainer().add(microServicesDDC);
 		arkCrudContainerVO.getDetailPanelFormContainer().add(dataSourcesDDC);
 		arkCrudContainerVO.getDetailPanelFormContainer().add(computationsDDC);
-		arkCrudContainerVO.getDetailPanelFormContainer().add(parametersTxtArea);
+		// arkCrudContainerVO.getDetailPanelFormContainer().add(parametersTxtArea);
 		arkCrudContainerVO.getDetailPanelFormContainer().add(resultTxtFld);
 		arkCrudContainerVO.getDetailPanelFormContainer().add(analysisJobIdLbl);
-		
-		arkCrudContainerVO.getDetailPanelFormContainer().add(fileUploadField);
-		arkCrudContainerVO.getDetailPanelFormContainer().add(clearButton);
-		arkCrudContainerVO.getDetailPanelFormContainer().add(deleteButton);
-		arkCrudContainerVO.getDetailPanelFormContainer().add(fileNameLbl);
+
+		// arkCrudContainerVO.getDetailPanelFormContainer().add(fileUploadField);
+		// arkCrudContainerVO.getDetailPanelFormContainer().add(clearButton);
+		// arkCrudContainerVO.getDetailPanelFormContainer().add(deleteButton);
+		// arkCrudContainerVO.getDetailPanelFormContainer().add(fileNameLbl);
 
 		arkCrudContainerVO.getEditButtonContainer().add(executeButton);
 		arkCrudContainerVO.getEditButtonContainer().add(resultButton);

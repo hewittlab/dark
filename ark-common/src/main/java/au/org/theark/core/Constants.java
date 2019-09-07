@@ -32,6 +32,7 @@ public class Constants {
 	public static final String ARK_DISEASE_SERVICE = "arkDiseaseService";
 	public static final String ARK_AUDIT_SERVICE = "arkAuditService";
 	public static final String ARK_PHENO_DATA_SERVICE = "phenotypicService";
+	public static final String ARK_SETTING_SERVICE = "arkSettingService";
 	
 	
 	/* Global constants */
@@ -43,6 +44,15 @@ public class Constants {
 	public static final String PERSON_CONTEXT_CONSENT_ID = "consentId";
 	public static final String MODULE_CONTEXT_NAME = "moduleName";
 	public static final String	COPY												= "copy";
+	
+	
+	/* Validation Messages*/
+	
+	public static final String VALIDATION_MESSAGES = "Validation";
+	public static final String VALIDATION_CREATE = "saved successfully";
+	public static final String VALIDATION_UPDATE = "updated successfully";
+	public static final String VALIDATION_DELETE = "deleted successfully";
+	
 
 	/* Disease tabs */
 	
@@ -122,10 +132,10 @@ public class Constants {
 	public static final String LIMS_SERVICE = "limsService";
 	public static final String STUDY_DAO = "studyDao";
 
-	public static final String FIELD_TYPE_NUMBER = "NUMBER";
-	public static final String FIELD_TYPE_CHARACTER = "CHARACTER";
-	public static final String FIELD_TYPE_DATE = "DATE";
-	public static final String FIELD_TYPE_LOOKUP = "LOOKUP";
+	public static final String FIELD_TYPE_NUMBER = "Number";
+	public static final String FIELD_TYPE_CHARACTER = "Character";
+	public static final String FIELD_TYPE_DATE = "Date";
+	public static final String FIELD_TYPE_LOOKUP = "LookUp";
 	public static final String DISCRETE_RANGE_TOKEN = ",";
 	public static final String ENCODED_VALUES_TOKEN = ";";
 	public static final String ENCODED_VALUES_FROM_TELEFORMS_TOKEN_SPACE = " ";
@@ -339,7 +349,8 @@ public class Constants {
 	public static final String FUNCTION_KEY_VALUE_PEDIGREE = "PEDIGREE";
 	public static final String FUNCTION_KEY_VALUE_GENO_TABLE = "GENO_TABLE";
 	public static final String FUNCTION_KEY_VALUE_AUDIT = "Audit";
-	
+	public static final String FUNCTION_KEY_VALUE_SETTING = "Settings";
+
 	public static final String FUNCTION_KEY_VALUE_GENE = "GENE";
 	public static final String FUNCTION_KEY_VALUE_DISEASE = "DISEASE";
 	public static final String FUNCTION_KEY_VALUE_DISEASE_CUSTOM_FIELDS = "DISEASE_CUSTOM_FIELDS";
@@ -365,13 +376,15 @@ public class Constants {
 	public static final String ARK_MODULE_DISEASE = "Disease";
 	public static final String ARK_MODULE_GLOBAL_SEARCH = "Global Search";
 	public static final String ARK_MODULE_GENOMICS = "Genomics";
+	public static final String ARK_MODULE_CALENDAR = "Calendar";
+	public static final String CALENDAR_SUBMENU	= "CalendarSubMenus";
 
 	public static final char DEFAULT_DELIMITER_CHARACTER = ',';
 	public static final String DEFAULT_FILE_FORMAT = "CSV";
 
 	public static final String STUDY = "study";
-	public static final String NO_STUDY_IN_CONTEXT_MESSAGE = "There is no study in context. Please select a Study.";
-	public static final String MODULE_NOT_ACCESSIBLE_MESSAGE = "You do not have the required security privileges to work with this function. Please see your Administrator.";
+	public static final String NO_STUDY_IN_CONTEXT_MESSAGE = "There is no study selected. Please select a Study.";
+	public static final String MODULE_NOT_ACCESSIBLE_MESSAGE = "You do not have the required security privileges to access this function. Please contact the system administrator.";
 
 	/* Session Objects */
 	public static final String SESSION_STUDY_KEY = "SESSION_STUDY";
@@ -394,22 +407,24 @@ public class Constants {
 			"MINIMUM_VALUE", "MAXIMUM_VALUE", "MISSING_VALUE" }; //ALLOW MULTI  not here because it is Questionairre/customfieldgroup based
 	public static final String[][] CUSTOM_FIELD_UPLOAD_HEADER = {{"", "FIELD_NAME","CUSTOM_FIELD_TYPE","CUSTOM_FIELD_CATEGORY",
 			"FIELD_TYPE", "DESCRIPTION", "QUESTION", "UNITS", "ENCODED_VALUES",
-			"MINIMUM_VALUE", "MAXIMUM_VALUE", "MISSING_VALUE", "REQUIRED", "ALLOW_MULTIPLE_SELECTIONS"},
+			"MINIMUM_VALUE", "MAXIMUM_VALUE", "MISSING_VALUE", "DEFAULT_VALUE", "REQUIRED", "ALLOW_MULTIPLE_SELECTIONS","MULTI_LINE_DISPLAY"},
 			{
 				"DESCRIPTION",
 				"The unique identifier of the field",
-				"The type of the field",
-				"The pre defined category name of the field",
-				"The field type of the field",
-				"The details description of the field",
-				"The question or the label for the field ",
-				"The units for the field",
-				"The encoded value for the field ",
-				"The minimum value for the field",
-				"The maximum value for the field",
-				"The missing value for the field",
-				"The required status for the field",
-				"The multiple selection allowed status for the field"
+				"The type of the custom field data - subject or family",
+				"The pre-defined category name to which the field belongs",
+				"The data type of the field",
+				"A text description of the field",
+				"The question or label text associated with the field",
+				"The units of measurement, if applicable",
+				"A specification of encoded values, optional when FIELD_TYPE is CHARACTER",
+				"The minimum value for the field, optional when FIELD_TYPE is NUMBER & DATE",
+				"The maximum value for the field, optional when FIELD_TYPE is NUMBER & DATE",
+				"A value that represents missing data; the data type must match that indicated by FIELD_TYPE",
+				"The default value for the field if no value is set",
+				"Whether values for this field are mandatory",
+				"If FIELD_TYPE is CHARACTER and encoded values are set, should multiple selections be allowed?",
+				"If FIELD_TYPE is CHARACTER and encoded values are not set, should multi-line display be allowed?"
 		},
 		{ 		"MANDATORY", 
 				"Yes", 
@@ -424,25 +439,29 @@ public class Constants {
 				"No",
 				"No",
 				"No",
+				"No",
+				"No",
 				"No"
 		 },
 		{
 				"VALID VALUES",
 				"Maximum 50 characters", 
+				"Subject, Family", 
 				"", 
-				"", 
-				"",
+				"Character, Number, Date",
 				"Maximum 255 characters", 
 				"Maximum 255 characters", 
 				"Maximum 50 characters",
-				"0=Yes;1=No;",
+				"Example: 0=No;1=Yes;",
 				"",
 				"",
 				"",
-				"true;yes;1;y;false;no;0;n",
-				"true;yes;1;y;false;no;0;n"
+				"",
+				"Yes, No",
+				"Yes, No",
+				"Yes, No"
 		},
-		{ "NOTE: Removed this first column, and replace rows 2 to 5", "", "", "", "", "", "", "","", "", "", "", "", ""
+		{ "NOTE: Remove this first column, and replace the contents of rows 2 to 5", "", "", "", "", "", "", "","", "", "", "", "", "","",""
 		}};
 	public static final String[][] CUSTOM_FIELD_CATEGORY_UPLOAD_HEADER={ { "","CATEGORY_NAME",
 		"CUSTOM_FIELD_TYPE","DESCRIPTION","PARENT_CATEGORY_NAME","ORDER_NUMBER"	},
@@ -491,6 +510,7 @@ public class Constants {
 	public static final String ARK_SESSION_ID = "ARK_SESSION_ID";
 	public static final String ARK_USERID = "ARK_USERID";
 	public static final String ARK_HOST = "ARK_HOST";
+	public static final String ARK_USER_NAME = "ARK_USER_NAME";
 	public static final String ARK_SESSION_START_TIMESTAMP = "ARK_SESSION_START_TIMESTAMP";
 	public static final String ARK_SESSION_LAST_ACCESS_TIME = "ARK_SESSION_LAST_ACCESS_TIME";
 	public static final String ARK_SESSION_ACTION = "ARK_SESSION_ACTION";
@@ -668,6 +688,8 @@ public class Constants {
 			{ "NOTE: Removed this first column, and replace rows 2 to 5", "", "",
 					"", "", "", "", "", "", "", "", "", "", "", "" } };
 	public static final String DOWNLOAD_FILE = "downloadFile";
+	public static final String DOWNLOAD_EXCLUDE_UIS = "downloadExcludUIs";
+	
 	public static final String DELETE_FILE = "deleteFile";
 
 	// Exception messages
@@ -686,7 +708,8 @@ public class Constants {
 	public static final String SEARCH_NAME = "search.name";
 	public static final String SEARCH_INCLUDE_GENO = "search.includeGeno";
 	public static final String SEARCH_INCLUDE_MEGA = "search.includeMega";
-	public static final String	SAVEANDCLOSE									= "saveAndClose";
+	public static final String	SAVEANDCLOSE	= "saveAndClose";
+	public static final String	SETANDCLOSE	= "setAndClose";
 	public static final String	yyyy_MM_dd	= "yyyy-MM-dd";
 	public static final String ARK_GENO_SERVICE = "genoService";
 	public enum FileFormat {CSV, XLS, PDF, TXT, DOC, XML};
@@ -697,11 +720,11 @@ public class Constants {
 	public static final String CONFIG_ROWS_PER_PAGE = "ROWS_PER_PAGE";
 	public static final String CONFIG_CUSTOM_FIELDS_PER_PAGE = "CUSTOM_FIELDS_PER_PAGE";
 	
-	public static final String MESSAGE_NO_SUBJECT_IN_CONTEXT="There is no subject in context. Please bring a subject into context via the subject tab.";
+	public static final String MESSAGE_NO_SUBJECT_IN_CONTEXT="There is no subject selected. Please select a subject from the subject tab.";
 	
-	public static final String MESSAGE_NO_STUDY_IN_CONTEXT="There is no study in context. Please select a study";
+	public static final String MESSAGE_NO_STUDY_IN_CONTEXT="There is no study selected. Please select a study.";
 	
-	public static final String ENTITY_TYPE_PHENO_DATASET_CATEGORY = "Pheno Data Set Category";
+	public static final String ENTITY_TYPE_PHENO_DATASET_CATEGORY = "Pheno Dataset Category";
 	
 	public static final String ENTITY_TYPE_PHENO_DATASET_FIELD = "PhenoDataSet Field";
 	
@@ -717,6 +740,8 @@ public class Constants {
 	
 	public static final String UPLOAD_STATUS_AWAITING_VALIDATION = "AWAITING_VALIDATION";
 	
+	public static final String UPLOAD_STATUS_OF_ERROR_ON_DATA_IMPORT= "ERROR_ON_DATA_IMPORT";
+	
 	//General Form text field maximum field length validation
 	public static final Integer GENERAL_FIELD_NAME_MAX_LENGTH_50 = 50;
 	
@@ -729,5 +754,40 @@ public class Constants {
 	public static final Integer GENERAL_FIELD_COMMENTS_MAX_LENGTH_500 = 500;
 	
 	public static final Integer GENERAL_FIELD_MAX_LENGTH_100 = 100;
-			
+	//This is 200MB
+	public static final Integer MAXIMUM_PERMISSABLE_FILE_SIZE=(int)((int)2*Math.pow(10,8));
+	
+	public static final String	PERSON_PERSON_ID				= "person.id";
+	public static final String	STREET_ADDRESS					= "streetAddress";
+	public static final String	COUNTRY_NAME					= "country";
+	public static final String	POST_CODE						= "postCode";
+	public static final String	CITY							= "city";
+	public static final String	STATE_NAME						= "state";
+	public static final String	ADDRESS_TYPE					= "addressType";
+	public static final String DELETE_UPLOAD 					= "deleteUpload";
+	
+	public static final String STUDY_COMP_STATUS_COMPLETED 		= "Completed";
+	public static final String STUDY_COMP_STATUS_RECEIVED 		= "Received";
+	public static final String STUDY_COMP_STATUS_REQUESTED 		= "Requested";
+	public static final String BIOCOLLECTION 					= "Biocollection";
+	public static final String BIOSPECIMEN 						= "Biospecimen";
+
+	public static final String ARK_SETTINGS_DIR = "config";
+
+	public static final String HOSTED_BY_IMAGE = "hosted_by_image.gif";
+	public static final String PRODUCT_IMAGE = "product_image.png";
+	public static final String EVENT_RELOAD_LOGO_IMAGES = "reloadLogos";
+
+	public static final String MAIL_SETTING_HOST = "MAIL_SETTING_HOST";
+	public static final String MAIL_SETTING_PORT = "MAIL_SETTING_PORT";
+	public static final String MAIL_SETTING_USERNAME = "MAIL_SETTING_USERNAME";
+	public static final String MAIL_SETTING_PASSWORD = "MAIL_SETTING_PASSWORD";
+	public static final String MAIL_SETTING_PROPERTIES_AUTH = "MAIL_SETTING_PROPERTIES_AUTH";
+	public static final String MAIL_SETTING_PROPERTIES_STARTTLS = "MAIL_SETTING_PROPERTIES_STARTTLS";
+	
+	public static final String ARK_STUDY_DIR="study";
+	
+	public static final String ENCODED_VALUES=	"encodedValueVO";
+	
+	
 }

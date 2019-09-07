@@ -18,6 +18,12 @@
  ******************************************************************************/
 package au.org.theark.study.web.component.consent.form;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Date;
+import java.util.List;
+
 import au.org.theark.core.exception.ArkSystemException;
 import au.org.theark.core.exception.EntityNotFoundException;
 import au.org.theark.core.model.audit.entity.ConsentHistory;
@@ -38,8 +44,10 @@ import org.apache.wicket.AttributeModifier;
 import org.apache.wicket.ajax.AjaxRequestTarget;
 import org.apache.wicket.ajax.form.AjaxFormComponentUpdatingBehavior;
 import org.apache.wicket.ajax.markup.html.form.AjaxButton;
-import org.apache.wicket.extensions.markup.html.form.DateTextField;
+import org.apache.wicket.datetime.PatternDateConverter;
+import org.apache.wicket.datetime.markup.html.form.DateTextField;
 import org.apache.wicket.markup.html.WebMarkupContainer;
+import org.apache.wicket.markup.html.basic.Label;
 import org.apache.wicket.markup.html.form.*;
 import org.apache.wicket.markup.html.form.upload.FileUpload;
 import org.apache.wicket.markup.html.form.upload.FileUploadField;
@@ -50,15 +58,41 @@ import org.apache.wicket.model.Model;
 import org.apache.wicket.model.StringResourceModel;
 import org.apache.wicket.spring.injection.annot.SpringBean;
 import org.apache.wicket.util.io.IOUtils;
+import org.apache.wicket.util.resource.FileResourceStream;
+import org.apache.wicket.util.resource.IResourceStream;
 import org.apache.wicket.validation.validator.DateValidator;
 import org.apache.wicket.validation.validator.StringValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Date;
-import java.util.List;
+import au.org.theark.core.exception.ArkCheckSumNotSameException;
+import au.org.theark.core.exception.ArkFileNotFoundException;
+import au.org.theark.core.exception.ArkSystemException;
+import au.org.theark.core.exception.EntityNotFoundException;
+import au.org.theark.core.model.audit.entity.ConsentHistory;
+import au.org.theark.core.model.study.entity.Consent;
+import au.org.theark.core.model.study.entity.ConsentStatus;
+import au.org.theark.core.model.study.entity.ConsentType;
+import au.org.theark.core.model.study.entity.LinkSubjectStudy;
+import au.org.theark.core.model.study.entity.Person;
+import au.org.theark.core.model.study.entity.Study;
+import au.org.theark.core.model.study.entity.StudyComp;
+import au.org.theark.core.model.study.entity.StudyCompStatus;
+import au.org.theark.core.model.study.entity.SubjectFile;
+import au.org.theark.core.model.study.entity.YesNo;
+import au.org.theark.core.service.IArkCommonService;
+import au.org.theark.core.util.AJAXDownload;
+import au.org.theark.core.vo.ArkCrudContainerVO;
+import au.org.theark.core.vo.ConsentVO;
+import au.org.theark.core.web.behavior.ArkDefaultFormFocusBehavior;
+import au.org.theark.core.web.component.ArkDatePicker;
+import au.org.theark.core.web.component.audit.button.HistoryButtonPanel;
+import au.org.theark.core.web.component.link.ArkBusyAjaxLink;
+import au.org.theark.core.web.component.panel.collapsiblepanel.CollapsiblePanel;
+import au.org.theark.core.web.form.AbstractDetailForm;
+import au.org.theark.study.service.IStudyService;
+import au.org.theark.study.web.Constants;
+import au.org.theark.study.web.component.consenthistory.ConsentHistoryPanel;
 
 /**
  * @author nivedann
@@ -69,9 +103,9 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 	private static final long						serialVersionUID	= 1L;
 	private transient Logger				log					= LoggerFactory.getLogger(DetailForm.class);
 
-	@SuppressWarnings("unchecked")
+	/*@SuppressWarnings("unchecked")
 	@SpringBean(name = au.org.theark.core.Constants.ARK_COMMON_SERVICE)
-	protected IArkCommonService					iArkCommonService;
+	protected IArkCommonService					iArkCommonService;*/
 
 	@SpringBean(name = Constants.STUDY_SERVICE)
 	protected IStudyService							iStudyService;
@@ -85,20 +119,24 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 	protected DateTextField							consentReceivedDtf;
 	protected DateTextField							consentCompletedDtf;
 
-	protected DropDownChoice<StudyComp>			studyComponentChoice;
-	protected DropDownChoice<StudyCompStatus>	studyComponentStatusChoice;
-	protected DropDownChoice<ConsentStatus>	consentStatusChoice;
-	protected DropDownChoice<ConsentType>		consentTypeChoice;
+	protected DropDownChoice<StudyComp>				studyComponentChoice;
+	protected DropDownChoice<StudyCompStatus>		studyComponentStatusChoice;
+	protected DropDownChoice<ConsentStatus>			consentStatusChoice;
+	protected DropDownChoice<ConsentType>			consentTypeChoice;
 	protected TextArea<String>						commentTxtArea;
 	protected WebMarkupContainer					wmcPlain;
 	protected WebMarkupContainer					wmcRequested;
 	protected WebMarkupContainer					wmcRecieved;
 	protected WebMarkupContainer					wmcCompleted;
-	protected DropDownChoice<YesNo>				consentDownloadedDdc;
+	protected DropDownChoice<YesNo>					consentDownloadedDdc;
 	protected CollapsiblePanel						consentHistoryPanel;
 	protected FileUploadField						fileUploadField;
-	private AjaxButton										clearButton;
+	private AjaxButton								clearButton;
 	protected HistoryButtonPanel					historyButtonPanel;
+	private Label									fileNameLbl;
+	private ArkBusyAjaxLink<String>  				fileNameLnk;
+	private AJAXDownload                            ajaxDownload;
+
 
 
 	public DetailForm(String id, FeedbackPanel feedBackPanel, ContainerForm containerForm, ArkCrudContainerVO arkCrudContainerVO) {
@@ -124,33 +162,77 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 		wmcCompleted.setOutputMarkupPlaceholderTag(true);
 		wmcCompleted.setVisible(false);
 
-		consentedDatePicker = new DateTextField(Constants.CONSENT_CONSENT_DATE, au.org.theark.core.Constants.DD_MM_YYYY);
+		consentedDatePicker = new DateTextField(Constants.CONSENT_CONSENT_DATE,new PatternDateConverter(au.org.theark.core.Constants.DD_MM_YYYY,false));
 		ArkDatePicker arkDatePicker = new ArkDatePicker();
 		arkDatePicker.bind(consentedDatePicker);
 		consentedDatePicker.add(arkDatePicker);
 
-		consentRequestedDtf = new DateTextField(Constants.CONSENT_REQUESTED_DATE, au.org.theark.core.Constants.DD_MM_YYYY);
+		consentRequestedDtf = new DateTextField(Constants.CONSENT_REQUESTED_DATE, new PatternDateConverter(au.org.theark.core.Constants.DD_MM_YYYY,false));
 		ArkDatePicker requestedDatePicker = new ArkDatePicker();
 		requestedDatePicker.bind(consentRequestedDtf);
 		consentRequestedDtf.add(requestedDatePicker);
 		wmcRequested.add(consentRequestedDtf);
 
-		consentReceivedDtf = new DateTextField(Constants.CONSENT_RECEIVED_DATE, au.org.theark.core.Constants.DD_MM_YYYY);
+		consentReceivedDtf = new DateTextField(Constants.CONSENT_RECEIVED_DATE, new PatternDateConverter(au.org.theark.core.Constants.DD_MM_YYYY,false));
 		ArkDatePicker recievedDatePicker = new ArkDatePicker();
 		recievedDatePicker.bind(consentReceivedDtf);
 		consentReceivedDtf.add(recievedDatePicker);
 		wmcRecieved.add(consentReceivedDtf);
 
-		consentCompletedDtf = new DateTextField(Constants.CONSENT_COMPLETED_DATE, au.org.theark.core.Constants.DD_MM_YYYY);
+		consentCompletedDtf = new DateTextField(Constants.CONSENT_COMPLETED_DATE, new PatternDateConverter(au.org.theark.core.Constants.DD_MM_YYYY,false));
 		ArkDatePicker completedDatePicker = new ArkDatePicker();
 		completedDatePicker.bind(consentCompletedDtf);
 		consentCompletedDtf.add(completedDatePicker);
 		wmcCompleted.add(consentCompletedDtf);
-
 		commentTxtArea = new TextArea<String>(Constants.CONSENT_CONSENT_COMMENT);
-		
 		// fileSubjectFile for consent file payload (attached to filename key)
-		fileUploadField = new FileUploadField(au.org.theark.study.web.Constants.SUBJECT_FILE_FILENAME);
+		fileUploadField = new FileUploadField(Constants.FILE);
+		fileNameLbl = new Label(au.org.theark.study.web.Constants.SUBJECT_FILE_FILENAME);
+		fileNameLbl.setOutputMarkupId(true);
+		ajaxDownload = new AJAXDownload()
+		{
+			 @Override
+	            protected IResourceStream getResourceStream()
+	            {
+				 	SubjectFile subjectFile=containerForm.getModelObject().getSubjectFile();
+					Long studyId =subjectFile.getLinkSubjectStudy().getStudy().getId();
+					String subjectUID = subjectFile.getLinkSubjectStudy().getSubjectUID();
+					String fileId = subjectFile.getFileId();
+					String checksum = subjectFile.getChecksum();
+					File file = null;
+					IResourceStream resStream =null;
+						try {
+							file=iArkCommonService.retriveArkFileAttachmentAsFile(studyId,subjectUID,isConsentFile(subjectFile)?au.org.theark.study.web.Constants.ARK_SUBJECT_CONSENT_DIR:au.org.theark.study.web.Constants.ARK_SUBJECT_ATTACHEMENT_DIR,fileId,checksum);
+							resStream = new FileResourceStream(file);
+							if(resStream==null){
+								containerForm.error("An unexpected error occurred. Download request could not be fulfilled.");
+							}
+						} catch (ArkSystemException e) {
+							containerForm.error("An unexpected error occurred. Download request could not be fulfilled.");
+							log.error(e.getMessage());
+						} catch (ArkFileNotFoundException e) {
+							containerForm.error("File not found:"+e.getMessage());
+							log.error(e.getMessage());
+						} catch (ArkCheckSumNotSameException e) {
+							containerForm.error("Check sum error:"+e.getMessage());
+							log.error(e.getMessage());
+						}
+						return resStream;
+		        }
+	            @Override
+	            protected String getFileName() {
+	                return containerForm.getModelObject().getSubjectFile().getFilename();
+	            }
+		};
+		fileNameLnk=new ArkBusyAjaxLink<String>(au.org.theark.study.web.Constants.SUBJECT_FILE_FILENAMELINK) {
+		@Override
+		public void onClick(AjaxRequestTarget target) {
+			ajaxDownload.initiate(target);
+			processErrors(target);
+		}
+
+		};
+		fileNameLnk.add(fileNameLbl);
 		clearButton = new AjaxButton("clearButton") {			
 			@Override
 			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
@@ -165,7 +247,50 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 			}
 		};
 		clearButton.add(new AttributeModifier("title", new Model<String>("Clear Attachment")));
-		
+		deleteButton = new AjaxButton("deleteButton") {
+			private static final long	serialVersionUID	= 1L;
+
+			@Override
+			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
+			try {
+				SubjectFile subjectFile=containerForm.getModelObject().getSubjectFile();
+				if(subjectFile!=null){
+					iStudyService.delete(subjectFile,isConsentFile(containerForm.getModelObject().getSubjectFile())?Constants.ARK_SUBJECT_CONSENT_DIR:Constants.ARK_SUBJECT_ATTACHEMENT_DIR);
+				}
+				containerForm.info("The file has been successfully deleted.");
+				containerForm.getModelObject().getSubjectFile().setFilename(null);
+			 }catch (EntityNotFoundException e) {
+					containerForm.error("The subject consent attachment no longer exists in the system.Please re-do the operation.");
+			 }catch (ArkSystemException e) {
+					containerForm.error("System error occure:"+e.getMessage());
+			 } catch (ArkFileNotFoundException e) {
+				 containerForm.error("File not found:"+e.getMessage());
+			}finally{
+				 //containerForm.getModelObject().getSubjectFile().setFilename(null);
+				this.setVisible(false);
+				target.add(fileNameLnk);
+				target.add(this);
+				processErrors(target);
+			 }
+			}
+			@Override
+			protected void onError(AjaxRequestTarget target, Form<?> form) {
+				containerForm.getModelObject().getSubjectFile().setPayload(null);
+				containerForm.getModelObject().getSubjectFile().setFilename(null);
+				this.setVisible(false);
+				target.add(fileNameLnk);
+				target.add(this);
+				containerForm.error("Error occurred during the file deletion process.");
+				processErrors(target);
+			}
+
+			@Override
+			public boolean isVisible() {
+				return (containerForm.getModelObject().getSubjectFile()!=null && containerForm.getModelObject().getSubjectFile().getFilename() != null) && !containerForm.getModelObject().getSubjectFile().getFilename().isEmpty();
+			}
+		};
+		deleteButton.add(new AttributeModifier("title", new Model<String>("Delete Attachment")));
+		deleteButton.setOutputMarkupId(true);
 		initStudyComponentChoice();
 		initConsentTypeChoice();
 		initConsentStatusChoice();
@@ -176,7 +301,7 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 		addDetailFormComponents();
 		attachValidators();
 
-		historyButtonPanel = new HistoryButtonPanel(containerForm, arkCrudContainerVO.getEditButtonContainer(), arkCrudContainerVO.getDetailPanelFormContainer());
+		historyButtonPanel = new HistoryButtonPanel(containerForm, arkCrudContainerVO.getEditButtonContainer(), arkCrudContainerVO.getDetailPanelFormContainer(),feedBackPanel);
 	}
 
 	/**
@@ -194,26 +319,26 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 			if(sessionPersonId!=null){
 				linkSubjectStudy = iStudyService.getSubjectLinkedToStudy(sessionPersonId, study);
 			}else{
-				throw new EntityNotFoundException("The subject in context does not exist in system.");
+				throw new EntityNotFoundException("The subject selected does not exist in system.");
 			}
 		 }catch (EntityNotFoundException e) {
-				containerForm.error("The subject in context does not exist in system anymore.Please re-do the operation.");
+				containerForm.error("The subject selected no longer exists in the system. Please re-do the operation.");
 		 }catch (ArkSystemException e) {
-				containerForm.error("There was a system error. Please contact support.");
+				containerForm.error("A system error has occurred. Please contact the system administrator.");
 		}
 		List<StudyComp> studyCompList = iArkCommonService.getStudyComponentByStudy(study);
+		//Used a different approch on 2016-08-16
 		//List<StudyComp> studyCompList = iArkCommonService.getStudyComponentsNotInThisSubject(study,linkSubjectStudy);
 		ChoiceRenderer<StudyComp> defaultChoiceRenderer = new ChoiceRenderer<StudyComp>(Constants.NAME, Constants.ID);
 		studyComponentChoice = new DropDownChoice<StudyComp>(Constants.CONSENT_STUDY_COMP, studyCompList, defaultChoiceRenderer){
 		private static final long	serialVersionUID	= 1L;
 			@Override
 			protected void onBeforeRender() {
-				if(isNew()){
-					setEnabled(true);
-				}else{
-					//studyCompList.set(0, getModelObject());
-					setEnabled(false);
-				}
+			if(isNew()){
+				setEnabled(true);
+			}else{
+				setEnabled(false);
+			}
 				super.onBeforeRender();
 			}
 		};
@@ -228,25 +353,41 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 				Long sessionStudyId = (Long) SecurityUtils.getSubject().getSession().getAttribute(au.org.theark.core.Constants.STUDY_CONTEXT_ID);
 				Long sessionPersonId = (Long) SecurityUtils.getSubject().getSession().getAttribute(au.org.theark.core.Constants.PERSON_CONTEXT_ID);
 
+				LinkSubjectStudy linkSubjectStudy=null;
+
 				try {
 					Study study = iArkCommonService.getStudy(sessionStudyId);
 					Person subject = iStudyService.getPerson(sessionPersonId);
+					if(sessionPersonId!=null){
+						linkSubjectStudy = iStudyService.getSubjectLinkedToStudy(sessionPersonId, study);
+					}else{
+						throw new EntityNotFoundException("The subject selected does not exist in system.");
+					}
 					boolean isConsented = iArkCommonService.isSubjectConsentedToComponent(studyComponentChoice.getModelObject(), subject, study);
 					processErrors(target);
 					if (isConsented) {
 						StringBuffer sb = new StringBuffer();
-						sb.append("Please choose another component. The Subject has already consented to Component: ");
-						sb.append(studyComponentChoice.getModelObject().getName());
+
+						//sb.append("Please choose another component. The Subject has already consented to Component: ");
+						//sb.append(studyComponentChoice.getModelObject().getName());
+						sb.append("A study component of this type already exists for subject ");
+						sb.append(linkSubjectStudy.getSubjectUID());
 						containerForm.error(sb.toString());
+						//Stopping save with exsisting components.
+						arkCrudContainerVO.getEditButtonContainer().get("save").setEnabled(false);
+						target.add(arkCrudContainerVO.getEditButtonContainer());
 						processErrors(target);
+					}else{
+						arkCrudContainerVO.getEditButtonContainer().get("save").setEnabled(true);
+						target.add(arkCrudContainerVO.getEditButtonContainer());
 					}
 				}
 				catch (EntityNotFoundException e) {
-					containerForm.error("The subject in context does not exist in system anymore.Please re-do the operation.");
+					containerForm.error("The subject selected no longer exists in the system.Please re-do the operation.");
 
 				}
 				catch (ArkSystemException e) {
-					containerForm.error("There was a system error. Please contact support.");
+					containerForm.error("A system error has occurred. Please contact the system administrator.");
 				}
 			}
 		});
@@ -354,6 +495,10 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 		arkCrudContainerVO.getDetailPanelFormContainer().add(consentHistoryPanel);
 		arkCrudContainerVO.getDetailPanelFormContainer().add(fileUploadField);
 		arkCrudContainerVO.getDetailPanelFormContainer().add(clearButton);
+		//arkCrudContainerVO.getDetailPanelFormContainer().add(fileNameLbl);
+		arkCrudContainerVO.getDetailPanelFormContainer().add(fileNameLnk);
+		arkCrudContainerVO.getDetailPanelFormContainer().add(deleteButton);
+		arkCrudContainerVO.getDetailPanelFormContainer().add(ajaxDownload);
 	}
 
 	/*
@@ -366,6 +511,8 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 		ConsentVO consentVO = new ConsentVO();
 		containerForm.setModelObject(consentVO);
 		new FormHelper().setDatePickerDefaultMarkup(target, wmcPlain, wmcRequested, wmcRecieved, wmcCompleted);
+		arkCrudContainerVO.getEditButtonContainer().get("save").setEnabled(true);
+		target.add(arkCrudContainerVO.getEditButtonContainer());
 	}
 
 	/*
@@ -378,14 +525,20 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 	protected void onDeleteConfirmed(AjaxRequestTarget target, String selection) {
 		try {
 			iStudyService.delete(containerForm.getModelObject().getConsent());
-			containerForm.info("The Consent has been deleted successfully.");
+			this.deleteInformation();
+			//containerForm.info("The Consent has been deleted successfully.");
+			SubjectFile subjectFile=containerForm.getModelObject().getSubjectFile();
+			if(subjectFile!=null){
+				iStudyService.delete(subjectFile,isConsentFile(containerForm.getModelObject().getSubjectFile())?Constants.ARK_SUBJECT_CONSENT_DIR:Constants.ARK_SUBJECT_ATTACHEMENT_DIR);
+			}
 			editCancelProcess(target);
-		}
-		catch (EntityNotFoundException entityNotFoundException) {
-			this.error("The consent you tried to delete does not exist");
-		}
-		catch (ArkSystemException e) {
+		}catch (EntityNotFoundException entityNotFoundException) {
+			this.error("The consent you tried to delete does not exist.");
+		}catch (ArkSystemException e) {
 			this.error("A system exception has occured during delete operation of the Consent");
+		}
+		catch (ArkFileNotFoundException e) {
+			 containerForm.error("File not found:"+e.getMessage());
 		}
 		ConsentVO consentVO = new ConsentVO();
 		containerForm.setModelObject(consentVO);
@@ -400,52 +553,77 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 	@Override
 	protected void onSave(Form<ConsentVO> containerForm, AjaxRequestTarget target) {
 		boolean isOkToSave = true;
-		 if(!isRequestedReceivedCompletedInOrder(containerForm.getModelObject().getConsent())){
+		boolean isOkToSaveOnAttachment= true;
+		 Consent exsistingConsent=containerForm.getModelObject().getConsent();
+		 if(!isRequestedReceivedCompletedInOrder(exsistingConsent)){
 			isOkToSave = false;
 		 }
-		if (isOkToSave) {
-			try {
-				// Study in Context
-				Long studyId = (Long) SecurityUtils.getSubject().getSession().getAttribute(au.org.theark.core.Constants.STUDY_CONTEXT_ID);
-				Study study = iArkCommonService.getStudy(studyId);
-				containerForm.getModelObject().getConsent().setStudy(study);
-				if (containerForm.getModelObject().getConsent().getId() == null) {
-					iStudyService.create(containerForm.getModelObject().getConsent());
-					this.info("Consent was successfuly created for the Subject ");
-					createConsentFile();
-					processErrors(target);
-					// Store session object (used for history)
-					SecurityUtils.getSubject().getSession().setAttribute(au.org.theark.core.Constants.PERSON_CONTEXT_CONSENT_ID, containerForm.getModelObject().getConsent().getId());
+		 //Check for the saving ability or update the consent according to the attached file.
+		 //Check for already attached file
+		 if(iStudyService.isAlreadyHasFileAttached(exsistingConsent.getLinkSubjectStudy(), exsistingConsent.getStudyComp())){
+			 //New filed attached
+			 if(isNewFileAttached()){
+				 // if attached check the new file and db recorded one equal and let them to save
+				 if(isSameCheckSumOfAttachedAgainstDbRecorded(exsistingConsent.getLinkSubjectStudy(), exsistingConsent.getStudyComp())){
+					 isOkToSaveOnAttachment=true;
+				//else do not allow to save
+				 }else{
+					 isOkToSaveOnAttachment=false;
+					 this.error("The Consent record you tried to update has already been assigned attachment.");
+					 processErrors(target);
+				 }
+			// if not new attached let them to save with other conditions
+			 }else{
+				 isOkToSaveOnAttachment=true;
+			 }
+		//if not already attached file in the db let them to save.
+		 }else {
+			 isOkToSaveOnAttachment=true;
+		 }
+		if (isOkToSave && isOkToSaveOnAttachment) {
+				try {
+					// Study in Context
+					Long studyId = (Long) SecurityUtils.getSubject().getSession().getAttribute(au.org.theark.core.Constants.STUDY_CONTEXT_ID);
+					Study study = iArkCommonService.getStudy(studyId);
+					containerForm.getModelObject().getConsent().setStudy(study);
+					if (containerForm.getModelObject().getConsent().getId() == null) {
+						iStudyService.create(containerForm.getModelObject().getConsent());
+						this.saveInformation();
+						//this.info("Consent was successfuly created for the Subject ");
+						createConsentFile();
+						processErrors(target);
+						// Store session object (used for history)
+						SecurityUtils.getSubject().getSession().setAttribute(au.org.theark.core.Constants.PERSON_CONTEXT_CONSENT_ID, containerForm.getModelObject().getConsent().getId());
+					}else{
+						boolean consentFile=fileUploadField.getFileUpload()!=null;
+						iStudyService.update(containerForm.getModelObject().getConsent(),consentFile);
+						if(isNewFileAttached() && !iStudyService.isAlreadyHasFileAttached(exsistingConsent.getLinkSubjectStudy(), exsistingConsent.getStudyComp())){
+							createConsentFile();
+						}
+						//Check for consent file upload
+						this.updateInformation();
+						//this.info("Consent was successfuly updated for the Subject ");
+						processErrors(target);
+					}
 				}
-				else {
-					boolean consentFile=fileUploadField.getFileUpload()!=null;
-					iStudyService.update(containerForm.getModelObject().getConsent(),consentFile);
-					createConsentFile();
-					//Check for consent file upload	
-					this.info("Consent was successfuly updated for the Subject ");
+				catch (EntityNotFoundException e) {
+					this.error("The Consent record you tried to update is no longer available in the system.");
 					processErrors(target);
 				}
-			}
-			catch (EntityNotFoundException e) {
-				this.error("The Consent record you tried to update is no longer available in the system");
-				processErrors(target);
-			}
-			catch (ArkSystemException e) {
-				this.error(e.getMessage());
-				processErrors(target);
-			}
-			finally {
-				onSavePostProcess(target);
-			}
-		}
-		else {
+				catch (ArkSystemException e) {
+					this.error(e.getMessage());
+					processErrors(target);
+				}
+				finally {
+					onSavePostProcess(target);
+				}
+		}else {
 			processErrors(target);
 		}
 	}
 
 	private void createConsentFile() throws ArkSystemException {
 		FileUpload fileSubjectFile = fileUploadField.getFileUpload();
-
 		if(fileSubjectFile != null) {
 			LinkSubjectStudy linkSubjectStudy = null;
 			Long studyId = (Long) SecurityUtils.getSubject().getSession().getAttribute(au.org.theark.core.Constants.STUDY_CONTEXT_ID);
@@ -454,8 +632,10 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 
 			try {
 				linkSubjectStudy = iArkCommonService.getSubject(sessionPersonId, study);
+				if(containerForm.getModelObject().getSubjectFile()==null){
+					containerForm.getModelObject().setSubjectFile(new SubjectFile());
+				}
 				containerForm.getModelObject().getSubjectFile().setLinkSubjectStudy(linkSubjectStudy);
-
 				containerForm.getModelObject().getSubjectFile().setPayload(IOUtils.toByteArray(fileSubjectFile.getInputStream()));
 				
 				byte[] byteArray = fileSubjectFile.getMD5();
@@ -467,10 +647,13 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 				containerForm.getModelObject().getSubjectFile().setChecksum(checksum);
 				containerForm.getModelObject().getSubjectFile().setFilename(fileSubjectFile.getClientFileName());
 				containerForm.getModelObject().getSubjectFile().setUserId(SecurityUtils.getSubject().getPrincipals().getPrimaryPrincipal().toString());
-		
+				containerForm.getModelObject().getSubjectFile().setIsConsentFile(true);
+
 				// Save
-				iStudyService.create(containerForm.getModelObject().getSubjectFile());
-				this.info("Consent file: " + containerForm.getModelObject().getSubjectFile().getFilename() + " was created successfully");
+				iStudyService.create(containerForm.getModelObject().getSubjectFile(),Constants.ARK_SUBJECT_CONSENT_DIR);
+				//this.saveInformation();
+				//No need of this cause it's calling at the actual consent object creation or update.
+				//this.info("Consent file: " + containerForm.getModelObject().getSubjectFile().getFilename() + " was created successfully");
 			}
 			catch (IOException ioe) {
 				log.error("Failed to save the uploaded file: " + ioe);
@@ -498,12 +681,7 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 	 */
 	@Override
 	protected boolean isNew() {
-		if (containerForm.getModelObject().getConsent().getId() == null) {
-			return true;
-		}
-		else {
-			return false;
-		}
+		return (containerForm.getModelObject().getConsent().getId() == null);
 	}
 	
 	@Override
@@ -530,7 +708,7 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 					(receivedDate.before(completedDate) || receivedDate.equals(completedDate))){
 				return true;
 			}else{
-				this.error("Please ensure chronological order of consent requested,received & complete dates.");
+				this.error("Please ensure all the dates are in the correct order.");
 				return false;
 			}
 		}else if(requestedDate!=null && receivedDate!=null){
@@ -559,8 +737,43 @@ public class DetailForm extends AbstractDetailForm<ConsentVO> {
 		}else if(requestedDate==null && receivedDate==null && completedDate==null){
 			return true;
 		}else{
-			this.error("Please ensure chronological order of consent requested,received & complete dates.");
+			this.error("Please ensure all the dates are in the correct order.");
 			return false;
 		}
 	}
+	/**
+	 *
+	 * @param linkSubjectStudy
+	 * @param studyComp
+	 * @return
+	 */
+	private boolean isSameCheckSumOfAttachedAgainstDbRecorded(LinkSubjectStudy linkSubjectStudy,StudyComp studyComp){
+		FileUpload fileSubjectFile = fileUploadField.getFileUpload();
+		byte[] byteArray = fileSubjectFile.getMD5();
+		String checksum = getHex(byteArray);
+		SubjectFile subjectFile=iStudyService.getSubjectFileParticularConsent(linkSubjectStudy, studyComp);
+		return subjectFile.getChecksum().equals(checksum);
+	}
+	/**
+	 *
+	 * @return
+	 */
+	private boolean isNewFileAttached(){
+		return (fileUploadField.getFileUpload()!=null);
+	}
+	/**
+	 *
+	 * @param subjectFile
+	 * @return
+	 */
+	private boolean isConsentFile(SubjectFile subjectFile){
+		if(subjectFile!=null){
+			return subjectFile.getIsConsentFile();
+		}else{
+			return false;
+		}
+
+
+	}
+
 }

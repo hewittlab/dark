@@ -181,13 +181,14 @@ public class ChildStudySubjectPanel extends Panel {
 		ContextHelper contextHelper = new ContextHelper();
 		contextHelper.setStudyContextLabel(target, study.getName(), arkContextMarkup);
 		contextHelper.setSubjectContextLabel(target, subject.getLinkSubjectStudy().getSubjectUID(), arkContextMarkup);
-		
+		contextHelper.setSubjectNameContextLabel(target, subject.getLinkSubjectStudy().getPerson().getFullName(), arkContextMarkup);
+
 		// Set Study Logo
 		StudyHelper studyHelper = new StudyHelper();
 		WebMarkupContainer wmc = (WebMarkupContainer) getParent();
 		au.org.theark.study.web.component.subject.form.DetailForm detailForm = (au.org.theark.study.web.component.subject.form.DetailForm) wmc.getParent();
 		au.org.theark.study.web.component.subject.DetailPanel detailPanel = (au.org.theark.study.web.component.subject.DetailPanel) detailForm.getParent();
 		
-		studyHelper.setStudyLogo(study, target, detailPanel.studyNameMarkup, detailPanel.studyLogoMarkup);
+		studyHelper.setStudyLogo(study, target, detailPanel.studyNameMarkup, detailPanel.studyLogoMarkup, iArkCommonService);
 	}
 }

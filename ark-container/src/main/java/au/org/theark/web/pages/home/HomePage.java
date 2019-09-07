@@ -48,6 +48,7 @@ import au.org.theark.registry.web.menu.RegistryTabProviderImpl;
 import au.org.theark.study.service.IStudyService;
 import au.org.theark.study.web.Constants;
 import au.org.theark.web.menu.AdminTabProviderImpl;
+import au.org.theark.web.menu.CalendarTabProviderImpl;
 import au.org.theark.web.menu.DiseaseTabProviderImpl;
 import au.org.theark.web.menu.GenomicsTabProviderImpl;
 import au.org.theark.web.menu.LimsTabProviderImpl;
@@ -125,6 +126,7 @@ public class HomePage extends BasePage {
 					studyService.getPerson(sessionPersonId);
 					LinkSubjectStudy lss  = iArkCommonService.getSubject(sessionPersonId, study);
 					contextHelper.setSubjectContextLabel(lss.getSubjectUID(), this.arkContextPanelMarkup);
+					contextHelper.setSubjectNameContextLabel(lss.getPerson().getFullName(), this.arkContextPanelMarkup);
 				}
 				catch (EntityNotFoundException e) {
 					log.error(e.getMessage());
@@ -148,6 +150,8 @@ public class HomePage extends BasePage {
 		arkContextPanelMarkup.add(studyLabel);
 		Label subjectLabel = new Label("subjectLabel", "");
 		arkContextPanelMarkup.add(subjectLabel);
+		Label subjectNameLabel = new Label("subjectNameLabel", "");
+		arkContextPanelMarkup.add(subjectNameLabel);
 		Label phenoLabel = new Label("phenoLabel", "");
 		arkContextPanelMarkup.add(phenoLabel);
 		Label genoLabel = new Label("genoLabel", "");
@@ -242,6 +246,15 @@ public class HomePage extends BasePage {
 						moduleTabsList.add(tab);
 					}
 				}
+				//Add the Calendar as a Module
+				if(arkModule.getName().equalsIgnoreCase(au.org.theark.core.Constants.ARK_MODULE_CALENDAR)){
+					CalendarTabProviderImpl calendarTabProvider = new CalendarTabProviderImpl((au.org.theark.core.Constants.ARK_MODULE_CALENDAR));
+					List<ITab> calendarTabList = calendarTabProvider.buildTabs();
+					for (ITab tab : calendarTabList) {
+						moduleTabsList.add(tab);
+					}
+				}
+				
 			}
 			
 			//Only add the global search tab once, at the end of the tabs

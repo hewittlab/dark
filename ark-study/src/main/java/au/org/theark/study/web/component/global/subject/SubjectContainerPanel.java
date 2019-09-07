@@ -104,6 +104,7 @@ public class SubjectContainerPanel extends AbstractContainerPanel<SubjectVO> {
 	private TabbedPanel mainTabs;
 	private List<Study> studyListForUser = new ArrayList<Study>();
 	
+	
 	/**
 	 * @param id
 	 * @param studyLogoMarkup 
@@ -138,20 +139,20 @@ public class SubjectContainerPanel extends AbstractContainerPanel<SubjectVO> {
 	}
 		
 	/**
-	 * Re-use in pedigree panel
+	 * Re-use in pedigree panel- commented due to looks like un used in here.
 	 * 
 	 * @param id
 	 * @param studyLogoMarkup 
 	 * @param studyNameMarkup 
 	 * @param modalWindow
 	 */
-	public SubjectContainerPanel(String id, WebMarkupContainer arkContextMarkup, WebMarkupContainer studyNameMarkup, WebMarkupContainer studyLogoMarkup,AbstractDetailModalWindow modalWindow,String gender,List<RelationshipVo> relatives) {
+	/*public SubjectContainerPanel(String id, WebMarkupContainer arkContextMarkup, WebMarkupContainer studyNameMarkup, WebMarkupContainer studyLogoMarkup,AbstractDetailModalWindow modalWindow,String gender,List<RelationshipVo> relatives) {
 		super(id);
 		this.arkContextMarkup = arkContextMarkup;
 		this.studyNameMarkup = studyNameMarkup;
 		this.studyLogoMarkup = studyLogoMarkup;
 		
-		/* Initialise the CPM */
+		 Initialise the CPM 
 		
 		SubjectVO subjectVO = new SubjectVO();
 		subjectVO.setEnableNewButton(false);
@@ -175,7 +176,7 @@ public class SubjectContainerPanel extends AbstractContainerPanel<SubjectVO> {
 		arkCrudContainerVO.getSearchPanelContainer().get("searchComponentPanel").get("searchForm").get("study").setEnabled(false);
 		
 		add(containerForm);
-	}
+	}*/
 
 	@SuppressWarnings("unchecked")
 	protected void prerenderContextCheck() {
@@ -283,6 +284,8 @@ public class SubjectContainerPanel extends AbstractContainerPanel<SubjectVO> {
 			}
 		};
 		
+		
+		
 		TextField<OtherID> txtFld = ((TextField<OtherID>) containerForm.get("searchContainer:searchComponentPanel:searchForm:otherID")); 
 		String otherIDSearch = txtFld!=null?txtFld.getValue():null;
 		if(otherIDSearch != null) {
@@ -298,7 +301,7 @@ public class SubjectContainerPanel extends AbstractContainerPanel<SubjectVO> {
 		subjectProvider.setModel(this.cpModel);
 
 		dataView = searchResultsPanel.buildDataView(subjectProvider);
-		dataView.setItemsPerPage(iArkCommonService.getUserConfig(au.org.theark.core.Constants.CONFIG_ROWS_PER_PAGE).getIntValue());
+		dataView.setItemsPerPage(iArkCommonService.getRowsPerPage());
 
 		if(containerForm.getModelObject().getStudyList().isEmpty()) {
 			containerForm.getModelObject().setStudyList(studyListForUser);
@@ -320,7 +323,7 @@ public class SubjectContainerPanel extends AbstractContainerPanel<SubjectVO> {
 		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("SubjectUID"), "subjectUID"));
 		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Study"), "linkSubjectStudy.study.name"));
 		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Full Name"), "subjectFullName"));
-		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Last Name History"), "linkSubjectStudy.person.descriptiveLastNameHistory"));
+		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Previous Last Names"), "linkSubjectStudy.person.descriptiveLastNameHistory"));
 		columns.add(new ExportableDateColumn<SubjectVO>(Model.of("Date Of Birth"), "linkSubjectStudy.person.dateOfBirth", au.org.theark.core.Constants.DD_MM_YYYY));
 		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Vital Status"), "linkSubjectStudy.person.vitalStatus.name"));
 		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Gender"), "linkSubjectStudy.person.genderType.name"));
@@ -328,12 +331,12 @@ public class SubjectContainerPanel extends AbstractContainerPanel<SubjectVO> {
 		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Consent Status"), "linkSubjectStudy.consentStatus.name"));
 		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Other IDs"), "linkSubjectStudy.person.descriptiveOtherIDs"));
 
-		DataTable table = new DataTable("datatable", columns, dataView.getDataProvider(), iArkCommonService.getUserConfig(au.org.theark.core.Constants.CONFIG_ROWS_PER_PAGE).getIntValue());
+		DataTable table = new DataTable("datatable", columns, dataView.getDataProvider(), iArkCommonService.getRowsPerPage());
 		List<String> headers = new ArrayList<String>(0);
 		headers.add("SubjectUID");
 		headers.add("Study");
 		headers.add("Full Name");
-		headers.add("Last Name History");
+		headers.add("Previous Last Names");
 		headers.add("Date of Birth");
 		headers.add("Vital Status");
 		headers.add("Gender");
@@ -343,6 +346,10 @@ public class SubjectContainerPanel extends AbstractContainerPanel<SubjectVO> {
 
 		String filename = "subjects";
 		RepeatingView toolbars = new RepeatingView("toolbars");
+		/*List<SubjectVO> listSubvo = new ArrayList<SubjectVO>();
+		if(subjectProvider.size() < 5000 ){
+			listSubvo=iArkCommonService.searchPageableSubjects(cpModel.getObject(), 0, subjectProvider.size());
+		}*/
 		ExportToolbar<String> exportToolBar = new ExportToolbar<String>(table, headers, filename);
 		toolbars.add(new Component[] { exportToolBar });
 		resultsWmc.add(toolbars);
@@ -353,7 +360,7 @@ public class SubjectContainerPanel extends AbstractContainerPanel<SubjectVO> {
 		return arkCrudContainerVO.getSearchResultPanelContainer();
 	}
 	
-	@SuppressWarnings("unchecked")
+	/*@SuppressWarnings("unchecked")
 	protected WebMarkupContainer initialiseSearchResults(AbstractDetailModalWindow modalWindow,final String gender,final List<RelationshipVo> relatives) {
 		searchResultsPanel = new SearchResultListPanel("searchResults", arkContextMarkup, containerForm, arkCrudContainerVO, studyNameMarkup, studyLogoMarkup, mainTabs);
 		searchResultsPanel.setOutputMarkupId(true);
@@ -411,7 +418,7 @@ public class SubjectContainerPanel extends AbstractContainerPanel<SubjectVO> {
 		subjectProvider.setModel(this.cpModel);
 
 		dataView = searchResultsPanel.buildDataView(subjectProvider,modalWindow,relatives,feedBackPanel);
-		dataView.setItemsPerPage(iArkCommonService.getUserConfig(au.org.theark.core.Constants.CONFIG_ROWS_PER_PAGE).getIntValue());
+		dataView.setItemsPerPage(iArkCommonService.getRowsPerPage());
 
 		AjaxPagingNavigator pageNavigator = new AjaxPagingNavigator("navigator", dataView){
 
@@ -428,7 +435,7 @@ public class SubjectContainerPanel extends AbstractContainerPanel<SubjectVO> {
 		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("SubjectUID"), "subjectUID"));
 		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Study"), "linkSubjectStudy.study.name"));
 		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Full Name"), "subjectFullName"));
-		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Last Name History"), "linkSubjectStudy.person.descriptiveLastNameHistory"));
+		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Previous Last Names"), "linkSubjectStudy.person.descriptiveLastNameHistory"));
 		columns.add(new ExportableDateColumn<SubjectVO>(Model.of("Date Of Birth"), "linkSubjectStudy.person.dateOfBirth", au.org.theark.core.Constants.DD_MM_YYYY));
 		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Vital Status"), "linkSubjectStudy.person.vitalStatus.name"));
 		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Gender"), "linkSubjectStudy.person.genderType.name"));
@@ -436,12 +443,12 @@ public class SubjectContainerPanel extends AbstractContainerPanel<SubjectVO> {
 		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Consent Status"), "linkSubjectStudy.consentStatus.name"));
 		columns.add(new ExportableTextColumn<SubjectVO>(Model.of("Other IDs"), "linkSubjectStudy.person.descriptiveOtherIDs"));
 
-		DataTable table = new DataTable("datatable", columns, dataView.getDataProvider(), iArkCommonService.getUserConfig(au.org.theark.core.Constants.CONFIG_ROWS_PER_PAGE).getIntValue());
+		DataTable table = new DataTable("datatable", columns, dataView.getDataProvider(), iArkCommonService.getRowsPerPage());
 		List<String> headers = new ArrayList<String>(0);
 		headers.add("SubjectUID");
 		headers.add("Study");
 		headers.add("Full Name");
-		headers.add("Last Name History");
+		headers.add("Previous Last Names");
 		headers.add("Date of Birth");
 		headers.add("Vital Status");
 		headers.add("Gender");
@@ -458,6 +465,6 @@ public class SubjectContainerPanel extends AbstractContainerPanel<SubjectVO> {
 		searchResultsPanel.add(resultsWmc);
 		arkCrudContainerVO.getSearchResultPanelContainer().add(searchResultsPanel);
 		return arkCrudContainerVO.getSearchResultPanelContainer();
-	}
+	}*/
 	
 }

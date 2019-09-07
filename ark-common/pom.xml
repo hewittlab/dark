@@ -29,6 +29,18 @@
 		<version>1.2b.3</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
+	<!-- Jersey dependency -->
+	<!-- <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.glassfish.jersey</groupId>
+                <artifactId>jersey-bom</artifactId>
+                <version>${jersey.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement> -->
 	<dependencies>
 		<!--  WICKET DEPENDENCIES -->
 		<dependency>
@@ -60,19 +72,16 @@
 			<artifactId>wicket-velocity</artifactId>
 			<version>${wicket.version}</version>
 		</dependency>
-
 		<dependency>
 			<groupId>commons-beanutils</groupId>
 			<artifactId>commons-beanutils</artifactId>
 			<version>1.7.0</version>
 		</dependency>
-
 		<dependency>
 			<groupId>wicket-tree</groupId>
 			<artifactId>wicket-tree</artifactId>
 			<version>0.5.0</version>
 		</dependency>
-
 		<dependency>
 			<groupId>org.apache.shiro</groupId>
 			<artifactId>shiro-core</artifactId>
@@ -100,19 +109,19 @@
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-core</artifactId>
-			<version>4.2.0.RELEASE</version>
+			<version>${springframework.version}</version>
 		</dependency>
 		
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-context-support</artifactId>
-			<version>4.2.0.RELEASE</version>
+			<version>${springframework.version}</version>
 		</dependency>
 		
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-orm</artifactId>
-			<version>4.2.0.RELEASE</version>
+			<version>${springframework.version}</version>
 		</dependency>
 
 		<dependency>
@@ -124,7 +133,7 @@
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-web</artifactId>
-    		<version>4.2.0.RELEASE</version>
+    		<version>${springframework.version}</version>
 		</dependency>
 
 		<!-- Hibernate Dependencies -->
@@ -139,13 +148,7 @@
   			<artifactId>hibernate-envers</artifactId> 
   			<version>${hibernate.version}</version> 
 		</dependency>
-		
-		<dependency>
-	        <groupId>org.hibernate</groupId>
-	        <artifactId>hibernate-tools</artifactId>
-	        <version>4.0.0-CR1</version>
-	    </dependency>
-		
+
 		<!-- JFreeChart -->
 		<dependency>
 			<groupId>jfree</groupId>
@@ -165,7 +168,7 @@
 		</dependency>
 
 		<!-- LOGGING DEPENDENCIES - LOG4J -->
-		<dependency>
+		<!--  <dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-log4j12</artifactId>
 			<version>1.4.2</version>
@@ -174,7 +177,13 @@
 			<groupId>log4j</groupId>
 			<artifactId>log4j</artifactId>
 			<version>1.2.14</version>
-		</dependency>
+			<exclusions>
+   				<exclusion>
+       				<groupId>org.slf4j</groupId>
+        			<artifactId>slf4j-api</artifactId>
+    			</exclusion>
+			</exclusions>
+		</dependency>  -->
 
 		<!-- SERVLET DEPENDENCIES -->
 		<dependency>
@@ -237,18 +246,31 @@
 		-->
 
 		<!--  Quartz (Job scheduling) -->
-		<dependency>
+		<!-- <dependency>
 			<groupId>org.quartz-scheduler</groupId>
 			<artifactId>quartz</artifactId>
 			<version>2.1.4</version>
-		</dependency>
-
+		</dependency> -->
 		<dependency>
+    		<groupId>org.quartz-scheduler</groupId>
+    		<artifactId>quartz</artifactId>
+    		<version>2.2.1</version>
+  		</dependency>
+  		<dependency>
+    		<groupId>org.quartz-scheduler</groupId>
+    		<artifactId>quartz-jobs</artifactId>
+    		<version>2.2.1</version>
+  		</dependency>   
+		<!-- <dependency>
 			<groupId>net.tanesha.recaptcha4j</groupId>
 			<artifactId>recaptcha4j</artifactId>
 			<version>0.0.7</version>
-		</dependency>
-
+		</dependency> -->
+		<!-- <dependency>
+    		<groupId>io.github.keetraxx</groupId>
+    		<artifactId>recaptcha</artifactId>
+    		<version>0.2</version>
+		</dependency> -->
 		<dependency>
 			<groupId>javax.mail</groupId>
 			<artifactId>mail</artifactId>
@@ -334,16 +356,69 @@
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-test</artifactId>
-			<version>4.2.0.RELEASE</version>
+			<version>${springframework.version}</version>
 			<scope>test</scope>
 		</dependency>
 
 		<dependency>
-			<groupId>org.seleniumhq.selenium</groupId>
-			<artifactId>selenium-java</artifactId>
-			<version>2.52.0</version>
+    		<groupId>org.wicketstuff</groupId>
+    		<artifactId>wicketstuff-progressbar</artifactId>
+    		<version>7.4.0</version>
+		</dependency>
+		<!-- https://mvnrepository.com/artifact/org.wicketstuff/progressbar-spring -->
+		<dependency>
+    		<groupId>org.wicketstuff</groupId>
+   			 <artifactId>progressbar-spring</artifactId>
+   			 <version>1.5-RC5.1</version>
+		</dependency>
+		<!-- Added the following rest services details --> 
+		<!-- <dependency>
+		    <groupId>org.wicketstuff</groupId>
+		    <artifactId>wicketstuff-restannotations</artifactId>
+		    <version>8.0.0-M6</version>
+		</dependency>
+		<dependency>
+	    	<groupId>org.wicketstuff</groupId>
+	    	<artifactId>wicketstuff-restannotations-json</artifactId>
+	    	<version>8.0.0-M6</version>
+		</dependency> -->
+		<!-- This is for the rest ful web service part -->
+		<dependency>
+    		<groupId>com.fasterxml.jackson.core</groupId>
+    		<artifactId>jackson-databind</artifactId>
+    	 	<version>2.9.9.2</version>
+		 		<!-- <version>2.5.3</version>  -->
+		</dependency>
+		<dependency>
+			<groupId>org.springframework</groupId>
+			<artifactId>spring-webmvc</artifactId>
+			<version>${springframework.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework</groupId>
+			<artifactId>spring-tx</artifactId>
+			<version>${springframework.version}</version>
+		</dependency>
+		<!-- <dependency>
+            <groupId>org.glassfish.jersey.containers</groupId>
+            <artifactId>jersey-container-servlet-core</artifactId>
+            use the following artifactId if you don't need servlet 2.x compatibility
+            artifactId>jersey-container-servlet</artifactId
+        </dependency>
+        uncomment this to get JSON support
+            
+          <dependency>
+            <groupId>org.glassfish.jersey.media</groupId>
+            <artifactId>jersey-media-moxy</artifactId>
+        </dependency> -->
+
+		<dependency>
+			<groupId>freemarker</groupId>
+			<artifactId>freemarker</artifactId>
+			<version>2.3.8</version>
 		</dependency>
 	</dependencies>
+	
 	<build>
 		<resources>
 			<resource>
@@ -434,10 +509,14 @@
 		</plugins>
 	</build>
 	<properties>
-		<wicket.version>1.5.11</wicket.version>
+		<wicket.version>1.5.17</wicket.version>
 		<jetty.version>6.1.4</jetty.version>
 		<shiro.version>1.2.3</shiro.version>
 		<hibernate.version>4.2.21.Final</hibernate.version>
+		<springframework.version>4.2.0.RELEASE</springframework.version>
+		<!-- <springframework.version>[4.3.1,)</springframework.version> -->
+
+		<!-- <jersey.version>2.25</jersey.version> -->
 	</properties>
 	<repositories>
 		<!--
@@ -455,7 +534,7 @@
 			<id>wicketstuff-core-releases</id>
 			<url>https://oss.sonatype.org/content/repositories/releases</url>
 			<releases>
-				<enabled>true</enabled>
+				<enabled>false</enabled>
 			</releases>		
 		</repository>
 	</repositories>

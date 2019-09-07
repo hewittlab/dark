@@ -38,16 +38,15 @@ import au.org.theark.core.model.study.entity.SubjectStatus;
  * 
  */
 @SuppressWarnings("serial")
-public class SubjectVO implements Serializable {
-
+public class SubjectVO implements ArkVo,Serializable {
 	protected String										subjectFullName;
-	protected SubjectStatus								subjectStatus;
-	protected LinkSubjectStudy							linkSubjectStudy;
-	protected Collection<SubjectVO>					subjectList;
-	protected SubjectFile								subjectFile;
-	protected ConsentAnswer								consentAnswerSelect;
+	protected SubjectStatus									subjectStatus;
+	protected LinkSubjectStudy								linkSubjectStudy;
+	protected Collection<SubjectVO>							subjectList;
+	protected SubjectFile									subjectFile;
+	protected ConsentAnswer									consentAnswerSelect;
 	protected String										subjectPreviousLastname;
-	protected String subjectUID;
+	protected String 										subjectUID;
 
 	/** A List of phone numbers linked to this person/subject */
 	protected Collection<Phone>						phoneList;
@@ -73,6 +72,8 @@ public class SubjectVO implements Serializable {
 	private String parentType;
 	
 	private String message;
+	
+	protected boolean changingLastName=true;
 
 	
 	public SubjectVO() {
@@ -301,5 +302,23 @@ public class SubjectVO implements Serializable {
 	public void setMessage(String message) {
 		this.message = message;
 	}
+	@Override
+	public String toString() {
+		return "SubjectVO [subjectUID=" + subjectUID + "]";
+	}
 
+	@Override
+	public String getArkVoName() {
+		return "Subject";
+	}
+
+	public boolean isChangingLastName() {
+		return changingLastName;
+	}
+
+	public void setChangingLastName(boolean changingLastName) {
+		this.changingLastName = changingLastName;
+	}
+
+	
 }

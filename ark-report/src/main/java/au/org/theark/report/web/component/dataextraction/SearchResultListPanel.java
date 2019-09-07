@@ -18,11 +18,11 @@
  ******************************************************************************/
 package au.org.theark.report.web.component.dataextraction;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
 
-import au.org.theark.core.model.pheno.entity.PhenoDataSetFieldDisplay;
-import au.org.theark.phenotypic.service.IPhenotypicService;
+import org.apache.commons.io.FileUtils;
 import org.apache.shiro.SecurityUtils;
 import org.apache.wicket.AttributeModifier;
 import org.apache.wicket.ajax.AjaxRequestTarget;
@@ -35,25 +35,33 @@ import org.apache.wicket.markup.html.list.PageableListView;
 import org.apache.wicket.markup.html.panel.Panel;
 import org.apache.wicket.model.AbstractReadOnlyModel;
 import org.apache.wicket.model.IModel;
+import org.apache.wicket.model.Model;
 import org.apache.wicket.spring.injection.annot.SpringBean;
+import org.apache.wicket.util.resource.IResourceStream;
 
 import au.org.theark.core.Constants;
+import au.org.theark.core.model.pheno.entity.PhenoDataSetFieldDisplay;
 import au.org.theark.core.model.report.entity.BiocollectionField;
 import au.org.theark.core.model.report.entity.BiospecimenField;
 import au.org.theark.core.model.report.entity.ConsentStatusField;
 import au.org.theark.core.model.report.entity.DemographicField;
 import au.org.theark.core.model.report.entity.Search;
+import au.org.theark.core.model.report.entity.SearchFile;
 import au.org.theark.core.model.study.entity.ArkFunction;
 import au.org.theark.core.model.study.entity.CustomFieldDisplay;
+import au.org.theark.core.model.study.entity.CustomFieldType;
 import au.org.theark.core.model.study.entity.Study;
 import au.org.theark.core.service.IArkCommonService;
 import au.org.theark.core.util.ArkString;
+import au.org.theark.core.util.ByteDataResourceRequestHandler;
 import au.org.theark.core.vo.ArkCrudContainerVO;
 import au.org.theark.core.vo.SearchVO;
 import au.org.theark.core.web.component.AbstractDetailModalWindow;
 import au.org.theark.core.web.component.ArkCRUDHelper;
 import au.org.theark.core.web.component.link.ArkBusyAjaxLink;
+import au.org.theark.phenotypic.service.IPhenotypicService;
 import au.org.theark.report.job.DataExtractionUploadExecutor;
+import au.org.theark.report.service.IReportService;
 import au.org.theark.report.web.component.dataextraction.form.ContainerForm;
 import au.org.theark.report.web.component.searchresult.SearchResultPanel;
 
@@ -71,6 +79,9 @@ public class SearchResultListPanel extends Panel {
 	@SpringBean(name = Constants.ARK_PHENO_DATA_SERVICE)
 	private IPhenotypicService 				iPhenoService;
 	private SimpleDateFormat dateFormat = new SimpleDateFormat(au.org.theark.core.Constants.DD_MM_YYYY_HH_MM_SS);
+	
+	@SpringBean(name = au.org.theark.report.service.Constants.REPORT_SERVICE)
+	private IReportService							reportService;
 	
 	/**
 	 * 
@@ -104,7 +115,7 @@ public class SearchResultListPanel extends Panel {
 
 			@Override
 			protected void onError(AjaxRequestTarget target, Form<?> form) {
-				this.error("Unexpected Error: Could not process download request");
+				this.error("A system error occurred. Could not process download request");
 			};
 		};
 
@@ -123,7 +134,7 @@ public class SearchResultListPanel extends Panel {
 	 */
 	public PageableListView<Search> buildPageableListView(IModel iModel) {
 
-		PageableListView<Search> sitePageableListView = new PageableListView<Search>("searchList", iModel, iArkCommonService.getUserConfig(Constants.CONFIG_ROWS_PER_PAGE).getIntValue()) {
+		PageableListView<Search> sitePageableListView = new PageableListView<Search>("searchList", iModel, iArkCommonService.getRowsPerPage()) {
 
 			private static final long	serialVersionUID	= 1L;
 
@@ -162,6 +173,8 @@ public class SearchResultListPanel extends Panel {
 				else {
 					item.add(new Label("search.finishTime", ""));
 				}
+				
+				item.add(buildExcludeSubjectUIsButton(search));
 				
 				/* Search Name Link */
 				item.add(buildLink(search));
@@ -241,9 +254,13 @@ public class SearchResultListPanel extends Panel {
 				Long studyId = (Long) SecurityUtils.getSubject().getSession().getAttribute(au.org.theark.core.Constants.STUDY_CONTEXT_ID);
 				Study study = iArkCommonService.getStudy(studyId); 
 				ArkFunction arkFunctionPheno = iArkCommonService.getArkFunctionByName(Constants.FUNCTION_KEY_VALUE_DATA_DICTIONARY);
-				ArkFunction arkFunctionBiocollection = iArkCommonService.getArkFunctionByName(au.org.theark.core.Constants.FUNCTION_KEY_VALUE_LIMS_CUSTOM_FIELD);
-				ArkFunction arkFunctionBiospecimen = iArkCommonService.getArkFunctionByName(au.org.theark.core.Constants.FUNCTION_KEY_VALUE_BIOSPECIMEN);
+				ArkFunction arkFunctionLIMS = iArkCommonService.getArkFunctionByName(au.org.theark.core.Constants.FUNCTION_KEY_VALUE_LIMS_CUSTOM_FIELD);
+				CustomFieldType cusFldTypeBioCollection=iArkCommonService.getCustomFieldTypeByName(au.org.theark.core.Constants.BIOCOLLECTION);
+				CustomFieldType cusFldTypeBiospecimen=iArkCommonService.getCustomFieldTypeByName(au.org.theark.core.Constants.BIOSPECIMEN);
 				ArkFunction arkFunctionSubject = iArkCommonService.getArkFunctionByName(au.org.theark.core.Constants.FUNCTION_KEY_VALUE_SUBJECT_CUSTOM_FIELD);
+				
+				SearchFile searchFile =reportService.getSearchFileByStudyAndSearch(study, search);
+				containerForm.getModelObject().setSearchFile(searchFile);
 
 				Collection<PhenoDataSetFieldDisplay> availablePhenoDataSetFieldDisplays = iPhenoService.getPhenoFieldDisplaysIn(study, arkFunctionPheno);
 				containerForm.getModelObject().setAvailablePhenoDataSetFieldDisplays(availablePhenoDataSetFieldDisplays);
@@ -257,17 +274,21 @@ public class SearchResultListPanel extends Panel {
 				containerForm.getModelObject().setSelectedSubjectCustomFieldDisplays(selectedSubjectCustomFieldDisplays);
 
 
-				Collection<CustomFieldDisplay> availableBiocollectionCustomFieldDisplays = iArkCommonService.getCustomFieldDisplaysIn(study, arkFunctionBiocollection);
+				Collection<CustomFieldDisplay> availableBiocollectionCustomFieldDisplays = iArkCommonService.getCustomFieldDisplaysInLIMS(study, arkFunctionLIMS, cusFldTypeBioCollection);
 				containerForm.getModelObject().setAvailableBiocollectionCustomFieldDisplays(availableBiocollectionCustomFieldDisplays);
-				Collection<CustomFieldDisplay> selectedBiocollectionCustomFieldDisplays =iArkCommonService.getSelectedBiocollectionCustomFieldDisplaysForSearch(search);//, true);
+				Collection<CustomFieldDisplay> selectedBiocollectionCustomFieldDisplays =iArkCommonService.getSelectedLIMSCustomFieldDisplaysForSearchOnCustomFieldType(search, cusFldTypeBioCollection);
 				containerForm.getModelObject().setSelectedBiocollectionCustomFieldDisplays(selectedBiocollectionCustomFieldDisplays);
 
 
-				Collection<CustomFieldDisplay> availableBiospecimenCustomFieldDisplays = iArkCommonService.getCustomFieldDisplaysIn(study, arkFunctionBiospecimen);
+				Collection<CustomFieldDisplay> availableBiospecimenCustomFieldDisplays = iArkCommonService.getCustomFieldDisplaysInLIMS(study, arkFunctionLIMS,cusFldTypeBiospecimen);
 				containerForm.getModelObject().setAvailableBiospecimenCustomFieldDisplays(availableBiospecimenCustomFieldDisplays);
-				Collection<CustomFieldDisplay> selectedBiospecimenCustomFieldDisplays =iArkCommonService.getSelectedBiospecimenCustomFieldDisplaysForSearch(search);//, true);
+				Collection<CustomFieldDisplay> selectedBiospecimenCustomFieldDisplays =iArkCommonService.getSelectedLIMSCustomFieldDisplaysForSearchOnCustomFieldType(search,cusFldTypeBiospecimen);//, true);
 				containerForm.getModelObject().setSelectedBiospecimenCustomFieldDisplays(selectedBiospecimenCustomFieldDisplays);
-
+				//Update the Create Filter button.
+				AjaxButton ajaxButton = (AjaxButton) arkCrudContainerVO.getDetailPanelFormContainer().get("createFilters");
+				ajaxButton.add(new AttributeModifier("value", new Model<String>(iArkCommonService.isAnyFilterAddedForSearch(search)?"Edit Filters":"Create Filters")));
+				target.add(ajaxButton);
+				target.add(arkCrudContainerVO.getDetailPanelFormContainer());
 				// Render the UI
 				ArkCRUDHelper.preProcessDetailPanelOnSearchResults(target, arkCrudContainerVO);
 			}
@@ -294,16 +315,57 @@ public class SearchResultListPanel extends Panel {
 				modalWindow.setContent(srp);
 				//modalWindow.setContent(new EmptyPanel("content"));
 				modalWindow.show(target);
+				
 			}
 
 			@Override
 			protected void onError(AjaxRequestTarget target, Form<?> form) {
-				this.error("Unexpected Error: Could not process download request");
+				this.error("A system error occurred. Could not process download request");
 			};
 			
 			@Override
 			public boolean isVisible() {
 				return search.getStatus() != null && search.getStatus().equalsIgnoreCase("FINISHED");
+			}
+		};
+
+		ajaxButton.setVisible(true);
+		ajaxButton.setDefaultFormProcessing(false);
+
+		return ajaxButton;
+	}
+	
+	private AjaxButton buildExcludeSubjectUIsButton(final Search search) {
+		AjaxButton ajaxButton = new AjaxButton(Constants.DOWNLOAD_EXCLUDE_UIS) {
+
+			private static final long	serialVersionUID	= 1L;
+
+			@Override
+			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
+				SearchFile searchFile=reportService.getSearchFileByStudyAndSearch(search.getStudy(), search);
+				Long studyId =searchFile.getStudy().getId();
+				Long searchId=searchFile.getSearch().getId();
+				String fileId = searchFile.getFileId();
+				String checksum = searchFile.getChecksum();
+				File file = null;
+					try {
+						file=iArkCommonService.retriveArkFileAttachmentAsFile(studyId,searchId.toString(),au.org.theark.report.web.Constants.REPORT_DATA_EXTRACTION_SUBJECT_UID_RESTRICT_FILE,fileId,checksum);
+						byte[] data = FileUtils.readFileToByteArray(file);
+						getRequestCycle().scheduleRequestHandlerAfterCurrent(new ByteDataResourceRequestHandler("text/plain", data, searchFile.getFilename()));
+					}catch (Exception e) {
+						e.printStackTrace();
+					}
+			}
+
+			@Override
+			protected void onError(AjaxRequestTarget target, Form<?> form) {
+				this.error("A system error occurred. Could not process download request");
+			};
+			@Override
+			public boolean isVisible() {
+				SearchFile searchFile=reportService.getSearchFileByStudyAndSearch(search.getStudy(), search);
+				return (searchFile!=null && searchFile.getId()!=null);
+				
 			}
 		};
 
@@ -345,7 +407,7 @@ public class SearchResultListPanel extends Panel {
 
 			@Override
 			protected void onError(AjaxRequestTarget target, Form<?> form) {
-				this.error("Unexpected Error: Could not process download request");
+				this.error("A system error occurred. Could not process download request");
 			};
 			
 			@Override

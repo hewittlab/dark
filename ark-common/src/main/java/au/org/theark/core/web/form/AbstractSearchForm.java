@@ -18,6 +18,8 @@
  ******************************************************************************/
 package au.org.theark.core.web.form;
 
+
+import org.apache.wicket.Session;
 import org.apache.wicket.ajax.AjaxRequestTarget;
 import org.apache.wicket.ajax.markup.html.form.AjaxButton;
 import org.apache.wicket.markup.html.form.Form;
@@ -106,7 +108,7 @@ public abstract class AbstractSearchForm<T> extends Form<T> {
 			}
 		};
 
-		newButton = new ArkBusyAjaxButton(Constants.NEW) {
+		newButton = new AjaxButton(Constants.NEW) {
 
 			private static final long	serialVersionUID	= 1666656098281624401L;
 
@@ -175,7 +177,7 @@ public abstract class AbstractSearchForm<T> extends Form<T> {
 				arkCrudContainerVO.getSearchPanelContainer().setEnabled(false);
 				//Add this line to avoid showing more than one error message. Now user knows exactly the functional error message.
 				//earlier there is message shows below the details form error message.
-				getSession().cleanupFeedbackMessages();
+                getSession().getFeedbackMessages().clear();
 				this.error(errorMessage);
 			}
 			else {
@@ -191,5 +193,9 @@ public abstract class AbstractSearchForm<T> extends Form<T> {
 
 	abstract protected void onSearch(AjaxRequestTarget target);
 
-	abstract protected void onNew(AjaxRequestTarget target);
+	//abstract protected void onNew(AjaxRequestTarget target);
+	protected void onNew(AjaxRequestTarget target){
+		Session.get().cleanupFeedbackMessages();
+		target.add(feedbackPanel);
+	}
 }

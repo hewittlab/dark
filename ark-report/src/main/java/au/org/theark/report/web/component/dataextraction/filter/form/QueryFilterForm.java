@@ -22,11 +22,9 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 
-import au.org.theark.core.model.pheno.entity.PhenoDataSetField;
-import au.org.theark.core.model.pheno.entity.PhenoDataSetFieldDisplay;
-import au.org.theark.phenotypic.service.IPhenotypicService;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.shiro.SecurityUtils;
 import org.apache.wicket.AttributeModifier;
@@ -34,15 +32,20 @@ import org.apache.wicket.ajax.AjaxRequestTarget;
 import org.apache.wicket.ajax.form.AjaxFormComponentUpdatingBehavior;
 import org.apache.wicket.ajax.markup.html.form.AjaxButton;
 import org.apache.wicket.extensions.ajax.markup.html.modal.ModalWindow;
+import org.apache.wicket.extensions.ajax.markup.html.modal.ModalWindow.WindowClosedCallback;
+import org.apache.wicket.markup.html.WebMarkupContainer;
 import org.apache.wicket.markup.html.basic.Label;
 import org.apache.wicket.markup.html.form.ChoiceRenderer;
 import org.apache.wicket.markup.html.form.DropDownChoice;
 import org.apache.wicket.markup.html.form.EnumChoiceRenderer;
 import org.apache.wicket.markup.html.form.Form;
 import org.apache.wicket.markup.html.form.TextField;
+import org.apache.wicket.markup.html.panel.EmptyPanel;
 import org.apache.wicket.markup.html.panel.FeedbackPanel;
+import org.apache.wicket.markup.html.panel.Panel;
 import org.apache.wicket.model.AbstractReadOnlyModel;
 import org.apache.wicket.model.IModel;
+import org.apache.wicket.model.Model;
 import org.apache.wicket.model.PropertyModel;
 import org.apache.wicket.spring.injection.annot.SpringBean;
 import org.slf4j.Logger;
@@ -50,6 +53,7 @@ import org.slf4j.LoggerFactory;
 
 import au.org.theark.core.Constants;
 import au.org.theark.core.exception.ArkSystemException;
+import au.org.theark.core.model.pheno.entity.PhenoDataSetFieldDisplay;
 import au.org.theark.core.model.report.entity.BiocollectionField;
 import au.org.theark.core.model.report.entity.BiospecimenField;
 import au.org.theark.core.model.report.entity.ConsentStatusField;
@@ -59,14 +63,20 @@ import au.org.theark.core.model.report.entity.Operator;
 import au.org.theark.core.model.report.entity.QueryFilter;
 import au.org.theark.core.model.study.entity.ArkFunction;
 import au.org.theark.core.model.study.entity.CustomFieldDisplay;
+import au.org.theark.core.model.study.entity.CustomFieldType;
 import au.org.theark.core.model.study.entity.Study;
 import au.org.theark.core.service.IArkCommonService;
+import au.org.theark.core.vo.ArkCrudContainerVO;
 import au.org.theark.core.vo.QueryFilterListVO;
 import au.org.theark.core.vo.QueryFilterVO;
+import au.org.theark.core.web.component.AbstractDetailModalWindow;
 import au.org.theark.core.web.component.listeditor.AbstractListEditor;
 import au.org.theark.core.web.component.listeditor.AjaxEditorButton;
 import au.org.theark.core.web.component.listeditor.ListItem;
 import au.org.theark.core.web.form.ArkFormVisitor;
+import au.org.theark.phenotypic.service.IPhenotypicService;
+import au.org.theark.report.web.component.dataextraction.filter.EncodePanel;
+import au.org.theark.report.web.component.dataextraction.filter.QueryFilterPanel;
 
 /**
  * @author cellis
@@ -99,29 +109,48 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 	private TextField<Double>							quantityTxtFld;
 	*/private DropDownChoice<FieldCategory>				fieldCategoryDdc;
 	private DropDownChoice								fieldDdc;
-	private DropDownChoice								operatorDdc;
+	private DropDownChoice<?>								operatorDdc;
 	private QueryFilterVO								queryFilterVoToCopy = new QueryFilterVO();
-	private Boolean										copyQueryFilter = false;
+	//private Boolean										copyQueryFilter = false;
+	private Boolean 									isMissingValueExsist=false;
 	//private TextField<Number>							concentrationTxtFld;
 	
-	protected ModalWindow 									modalWindow;
+	protected ModalWindow 									modalWindowFilter;
+	
+	protected ModalWindow 									modalWindowEncoded;
+	
+	
+	private IModel<QueryFilterListVO>    classModel;
+	private ArkCrudContainerVO arkCrudContainerVO;
+		
+	private Boolean isEncodedValueExsists=false;
+	
+	private Panel modalContentPanel;
 
-	public QueryFilterForm(String id, IModel<QueryFilterListVO> model, ModalWindow modalWindow) {
+	public QueryFilterForm(String id, IModel<QueryFilterListVO> model, ModalWindow modalWindowFilter,ModalWindow modalWindowEncoded,ArkCrudContainerVO arkCrudContainerVO) {
 		super(id, model);
 		Long studySessionId = (Long) SecurityUtils.getSubject().getSession().getAttribute(au.org.theark.core.Constants.STUDY_CONTEXT_ID);
 		final Study study = iArkCommonService.getStudy(studySessionId);
 		model.getObject().setStudy(study);
-		model.getObject().setQueryFilterVOs(iArkCommonService.getQueryFilterVOs(model.getObject().getSearch()));
+		
+		List<QueryFilterVO> queryFilterVOs=iArkCommonService.getQueryFilterVOs(model.getObject().getSearch());
+		model.getObject().setQueryFilterVOs(queryFilterVOs);
 		
 		//model.getObject().setQueryFilterVOs(iArkCommonService.getQueryFilter(search));
 		this.feedbackPanel = new FeedbackPanel("feedback");
 		feedbackPanel.setOutputMarkupId(true);
 		setMultiPart(true);
-		this.modalWindow = modalWindow;
+		this.modalWindowFilter = modalWindowFilter;
+		this.modalWindowEncoded=modalWindowEncoded;
+		this.classModel=model;
+		this.arkCrudContainerVO=arkCrudContainerVO;
 		add(feedbackPanel);
 	}
 
 	public void initialiseForm() {
+		
+		modalContentPanel = new EmptyPanel("content");
+		add(modalWindowEncoded);
 		/*
 		add(numberToCreateTxtFld);
 		add(new AjaxButton("numberToCreateButton") {
@@ -165,7 +194,7 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 			@Override
 			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
 				QueryFilterVO filter= new QueryFilterVO();
-				copyQueryFilter = false;
+				//copyQueryFilter = false;
 				listEditor.addItem(filter);
 				listEditor.updateModel();
 				target.add(form);
@@ -178,6 +207,7 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 			@Override
 			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
 				onSave(target);
+				textChangeCreateFilterButton(target);
 				target.add(feedbackPanel);
 			}
 
@@ -193,7 +223,8 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 			@Override
 			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
 				if(onSave(target)) {
-					modalWindow.close(target);
+					textChangeCreateFilterButton(target);
+					modalWindowFilter.close(target);
 				}
 				else{
 					log.info("failed validation so don't permit save and close");
@@ -212,7 +243,7 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 
 			@Override
 			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
-				modalWindow.close(target);
+				modalWindowFilter.close(target);
 			}
 
 			@Override
@@ -235,29 +266,17 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 			protected void onPopulateItem(final ListItem<QueryFilterVO> item) {
 				item.setOutputMarkupId(true);
 				item.add(new Label("row", ""+(item.getIndex()+1)));
-				
-				if(copyQueryFilter) {
+				/*if(copyQueryFilter) {
 					item.getModelObject().setFieldCategory(queryFilterVoToCopy.getFieldCategory());
 					item.getModelObject().setQueryFilter(queryFilterVoToCopy.getQueryFilter());
 					item.getModelObject().getQueryFilter().setValue(queryFilterVoToCopy.getQueryFilter().getValue());
 					item.getModelObject().getQueryFilter().setSecondValue(queryFilterVoToCopy.getQueryFilter().getSecondValue());
-				}
-				
+				}*/
+			
 				initFieldCategoryDdc(item);
 				initFieldDdc(item);
-				initOperatorDdc(item);
+				initOperatorDdc(item,false,false,null);
 				
-				valueTxtFld = new TextField<String>("value", new PropertyModel(item.getModelObject(), "queryFilter.value"));
-				valueTxtFld.add(new AjaxFormComponentUpdatingBehavior("onchange"){
-				    @Override
-				    protected void onUpdate(AjaxRequestTarget target) {
-				    	/* we may want to perform some live validation based on the type of field we are selecting */
-				   	log.info("onchange of VALUE");
-				    	target.add(feedbackPanel);
-				    } 
-				});
-
-				item.add(valueTxtFld);
 				
 				// Copy button allows entire row details to be copied
 				item.add(new AjaxEditorButton(Constants.COPY) {
@@ -274,11 +293,12 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 						
 						try {
 							PropertyUtils.copyProperties(queryFilterVO, getItem().getModelObject());
-							PropertyUtils.copyProperties(queryFilterVoToCopy, getItem().getModelObject());
-							queryFilterVoToCopy.getQueryFilter().setId(null);
+							//PropertyUtils.copyProperties(queryFilterVoToCopy, getItem().getModelObject());
+							//queryFilterVoToCopy.getQueryFilter().setId(null);
 							queryFilterVO.getQueryFilter().setId(null);
-							copyQueryFilter = true;
+							//copyQueryFilter = true;
 							listEditor.addItem(queryFilterVO);
+							listEditor.updateModel();
 							target.add(form);
 						}
 						catch (IllegalAccessException e) {
@@ -292,38 +312,30 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 						}
 					}
 				}.setDefaultFormProcessing(false));
+				
 				item.add(new AjaxEditorButton(Constants.DELETE) {
 					private static final long	serialVersionUID	= 1L;
-
 					@Override
 					protected void onError(AjaxRequestTarget target, Form<?> form) {
 						target.add(feedbackPanel);
 					}
-
 					@Override
 					protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
 						iArkCommonService.deleteQueryFilter(item.getModelObject().getQueryFilter());
 						listEditor.removeItem(item);
+						listEditor.updateModel();
 						target.add(form);
 					}
 				}.setDefaultFormProcessing(false).setVisible(item.getIndex()>=0));
-
-
-				
 				item.add(new AttributeModifier(Constants.CLASS, new AbstractReadOnlyModel() {
 
 					private static final long	serialVersionUID	= 1L;
-
 					@Override
 					public String getObject() {
 						return (item.getIndex() % 2 == 1) ? Constants.EVEN : Constants.ODD;
 					}
 				}));
-			
-				
-				
 				}
-
 		};
 		return listEditor;
 	}
@@ -334,7 +346,7 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 	 * perform this after initfieldcategoryddc
 	 * @param item
 	 */
-	private void initFieldDdc(ListItem<QueryFilterVO> item){
+	private void initFieldDdc(final ListItem<QueryFilterVO> item){
 		if(item.getModelObject()!=null && item.getModelObject().getFieldCategory()!=null){
 		
 			FieldCategory catFromItem = item.getModelObject().getFieldCategory();
@@ -349,17 +361,13 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 							(List<DemographicField>) demographicFieldCategoryList, choiceRenderer);
 					fieldDdc.setRequired(true);
 					fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange") {
-
-						/**
-						 * 
-						 */
 						private static final long	serialVersionUID	= 1L;
-
 						@Override
 						protected void onUpdate(AjaxRequestTarget target) {
 							queryFilterVoToCopy.getQueryFilter().setDemographicField((DemographicField) getComponent().getDefaultModelObject());
 						}
 					});
+				
 					break;
 				}
 	
@@ -371,10 +379,6 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 							(List<BiospecimenField>) BiospecimenFieldCategoryList, choiceRenderer);
 					fieldDdc.setRequired(true);
 					fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange") {
-
-						/**
-						 * 
-						 */
 						private static final long	serialVersionUID	= 1L;
 
 						@Override
@@ -382,6 +386,7 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 							queryFilterVoToCopy.getQueryFilter().setBiospecimenField((BiospecimenField) getComponent().getDefaultModelObject());
 						}
 					});
+					 
 					break;
 				}
 	
@@ -393,12 +398,7 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 							(List<BiocollectionField>) biocollectionFieldCategoryList, choiceRenderer);
 					fieldDdc.setRequired(true);
 					fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange") {
-
-						/**
-						 * 
-						 */
 						private static final long	serialVersionUID	= 1L;
-
 						@Override
 						protected void onUpdate(AjaxRequestTarget target) {
 							queryFilterVoToCopy.getQueryFilter().setBiocollectionField((BiocollectionField) getComponent().getDefaultModelObject());
@@ -412,22 +412,18 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 					
 					List<CustomFieldDisplay> fieldCategoryList = iArkCommonService.getCustomFieldDisplaysIn(getModelObject().getStudy(), arkFunction);
 					ChoiceRenderer<CustomFieldDisplay> choiceRenderer = new ChoiceRenderer<CustomFieldDisplay>(Constants.CUSTOM_FIELD_DOT_NAME, Constants.ID);
-					fieldDdc = new DropDownChoice<CustomFieldDisplay>("queryFilter.field", 
-							new PropertyModel(item.getModelObject(), "queryFilter.customFieldDisplay"), 
-							(List<CustomFieldDisplay>) fieldCategoryList, choiceRenderer);
+					fieldDdc = new DropDownChoice<CustomFieldDisplay>("queryFilter.field",new PropertyModel(item.getModelObject(), "queryFilter.customFieldDisplay"),(List<CustomFieldDisplay>) fieldCategoryList, choiceRenderer);
 					fieldDdc.setRequired(true);
 					fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange") {
-
-						/**
-						 * 
-						 */
 						private static final long	serialVersionUID	= 1L;
-
 						@Override
 						protected void onUpdate(AjaxRequestTarget target) {
-							queryFilterVoToCopy.getQueryFilter().setCustomFieldDisplay((CustomFieldDisplay) getComponent().getDefaultModelObject());
+							Object object=getComponent().getDefaultModelObject();
+							popUpModelWithEncodeValuesCustomFields(object,item, catFromItem, target);
+							queryFilterVoToCopy.getQueryFilter().setCustomFieldDisplay((CustomFieldDisplay)object);
 						}
 					});
+					
 					break;
 				}
 	
@@ -441,15 +437,12 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 							(List<PhenoDataSetFieldDisplay>) fieldCategoryList, choiceRenderer);
 					fieldDdc.setRequired(true);
 					fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange") {
-
-						/**
-						 * 
-						 */
 						private static final long	serialVersionUID	= 1L;
-
 						@Override
 						protected void onUpdate(AjaxRequestTarget target) {
-							queryFilterVoToCopy.getQueryFilter().setPhenoDataSetFieldDisplay((PhenoDataSetFieldDisplay) getComponent().getDefaultModelObject());
+							Object object=getComponent().getDefaultModelObject();
+							popUpModelWithEncodeValuesPhenoDataSetFields(object, item, catFromItem, target);
+							queryFilterVoToCopy.getQueryFilter().setPhenoDataSetFieldDisplay((PhenoDataSetFieldDisplay) object);
 						}
 					});
 					break;
@@ -457,47 +450,41 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 	
 				case BIOCOLLECTION_CFD:{
 					ArkFunction arkFunction = iArkCommonService.getArkFunctionByName(Constants.FUNCTION_KEY_VALUE_LIMS_CUSTOM_FIELD);
-					
-					List<CustomFieldDisplay> fieldCategoryList = iArkCommonService.getCustomFieldDisplaysIn(getModelObject().getStudy(), arkFunction);
+					CustomFieldType cusFldTypeBioCollection=iArkCommonService.getCustomFieldTypeByName(au.org.theark.core.Constants.BIOCOLLECTION);
+					List<CustomFieldDisplay> fieldCategoryList = iArkCommonService.getCustomFieldDisplaysInForCustomFieldType(getModelObject().getStudy(),cusFldTypeBioCollection,arkFunction);
 					ChoiceRenderer<CustomFieldDisplay> choiceRenderer = new ChoiceRenderer<CustomFieldDisplay>(Constants.CUSTOM_FIELD_DOT_NAME, Constants.ID);
 					fieldDdc = new DropDownChoice<CustomFieldDisplay>("queryFilter.field", 
 							new PropertyModel(item.getModelObject(), "queryFilter.customFieldDisplay"), 
 							(List<CustomFieldDisplay>) fieldCategoryList, choiceRenderer);
 					fieldDdc.setRequired(true);
 					fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange") {
-
-						/**
-						 * 
-						 */
 						private static final long	serialVersionUID	= 1L;
-
 						@Override
 						protected void onUpdate(AjaxRequestTarget target) {
-							queryFilterVoToCopy.getQueryFilter().setCustomFieldDisplay((CustomFieldDisplay) getComponent().getDefaultModelObject());
+							Object object=getComponent().getDefaultModelObject();
+							popUpModelWithEncodeValuesCustomFields(object,item, catFromItem, target);
+							queryFilterVoToCopy.getQueryFilter().setCustomFieldDisplay((CustomFieldDisplay) object);
 						}
 					});
 					break;
 				}
 				
 				case BIOSPECIMEN_CFD:{		
-					ArkFunction arkFunction = iArkCommonService.getArkFunctionByName(Constants.FUNCTION_KEY_VALUE_BIOSPECIMEN);
-					
-					List<CustomFieldDisplay> fieldCategoryList = iArkCommonService.getCustomFieldDisplaysIn(getModelObject().getStudy(), arkFunction);
+					ArkFunction arkFunction = iArkCommonService.getArkFunctionByName(Constants.FUNCTION_KEY_VALUE_LIMS_CUSTOM_FIELD);
+					CustomFieldType cusFldTypeBiospecimen=iArkCommonService.getCustomFieldTypeByName(au.org.theark.core.Constants.BIOSPECIMEN);
+					List<CustomFieldDisplay> fieldCategoryList = iArkCommonService.getCustomFieldDisplaysInForCustomFieldType(getModelObject().getStudy(),cusFldTypeBiospecimen,arkFunction);
 					ChoiceRenderer<CustomFieldDisplay> choiceRenderer = new ChoiceRenderer<CustomFieldDisplay>(Constants.CUSTOM_FIELD_DOT_NAME, Constants.ID);
 					fieldDdc = new DropDownChoice<CustomFieldDisplay>("queryFilter.field", 
 							new PropertyModel(item.getModelObject(), "queryFilter.customFieldDisplay"), 
 							(List<CustomFieldDisplay>) fieldCategoryList, choiceRenderer);
 					fieldDdc.setRequired(true);
 					fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange") {
-
-						/**
-						 * 
-						 */
 						private static final long	serialVersionUID	= 1L;
-
 						@Override
 						protected void onUpdate(AjaxRequestTarget target) {
-							queryFilterVoToCopy.getQueryFilter().setCustomFieldDisplay((CustomFieldDisplay) getComponent().getDefaultModelObject());
+							Object object=getComponent().getDefaultModelObject();
+							popUpModelWithEncodeValuesCustomFields(object,item, catFromItem, target);
+							queryFilterVoToCopy.getQueryFilter().setCustomFieldDisplay((CustomFieldDisplay) object);
 						}
 					});
 					break;
@@ -511,12 +498,7 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 							(List<ConsentStatusField>) consentStatusFieldCategoryList, choiceRenderer);
 					fieldDdc.setRequired(true);
 					fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange") {
-
-						/**
-						 * 
-						 */
 						private static final long	serialVersionUID	= 1L;
-
 						@Override
 						protected void onUpdate(AjaxRequestTarget target) {
 							queryFilterVoToCopy.getQueryFilter().setConsentStatusField((ConsentStatusField) getComponent().getDefaultModelObject());
@@ -535,46 +517,78 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 					(List<DemographicField>) demographicFieldCategoryList, choiceRenderer);
 			fieldDdc.setRequired(true);
 			fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange") {
-
-				/**
-				 * 
-				 */
 				private static final long	serialVersionUID	= 1L;
-
 				@Override
 				protected void onUpdate(AjaxRequestTarget target) {
 					queryFilterVoToCopy.getQueryFilter().setDemographicField((DemographicField) getComponent().getDefaultModelObject());
 				}
-				
 			});
-	
 		}
 		fieldDdc.setOutputMarkupId(true);
 		fieldDdc.setRequired(true);
-	
-		item.add(fieldDdc);
+		item.addOrReplace(fieldDdc);
 	}
 	
-	private void initOperatorDdc(final ListItem<QueryFilterVO> item){
-		Collection<Operator> operatorList = Arrays.asList(Operator.values());
-		//ChoiceRenderer<Operator> choiceRenderer = new ChoiceRenderer<Operator>(Constants.PUBLIC_FIELD_NAME, Constants.ID);
-		operatorDdc = new DropDownChoice<Operator>("queryFilter.operator", 
-				new PropertyModel(item.getModelObject(), "queryFilter.operator"), 
-				(List<Operator>) operatorList, new EnumChoiceRenderer<Operator>(QueryFilterForm.this));
-
+	private void initOperatorDdc(final ListItem<QueryFilterVO> item,Boolean isCustomFieldOperator,Boolean isCustomFieldEncoded,AjaxRequestTarget target){
+		List<Operator>	operatorList = new LinkedList<Operator>(Arrays.asList(Operator.values()));
+		//Add remove operator according to the category selection.
+		if(isCustomFieldOperator){
+			if(!operatorList.contains(Operator.EQUALS_MISSING))operatorList.add(Operator.EQUALS_MISSING);
+			if(!operatorList.contains(Operator.NOT_EQUALS_MISSING))operatorList.add(Operator.NOT_EQUALS_MISSING);
+		}else{
+			if(operatorList.contains(Operator.EQUALS_MISSING))operatorList.remove(Operator.EQUALS_MISSING);
+			if(operatorList.contains(Operator.NOT_EQUALS_MISSING))operatorList.remove(Operator.NOT_EQUALS_MISSING);
+		}
+		if(isCustomFieldEncoded){
+			if(operatorList.contains(Operator.BETWEEN))operatorList.remove(Operator.BETWEEN);
+			if(operatorList.contains(Operator.LESS_THAN))operatorList.remove(Operator.LESS_THAN);
+			if(operatorList.contains(Operator.LESS_THAN_OR_EQUAL))operatorList.remove(Operator.LESS_THAN_OR_EQUAL);
+			if(operatorList.contains(Operator.GREATER_THAN))operatorList.remove(Operator.GREATER_THAN);
+			if(operatorList.contains(Operator.GREATER_THAN_OR_EQUAL))operatorList.remove(Operator.GREATER_THAN_OR_EQUAL);
+		}else{
+			if(!operatorList.contains(Operator.BETWEEN))operatorList.add(Operator.BETWEEN);
+			if(!operatorList.contains(Operator.LESS_THAN))operatorList.add(Operator.LESS_THAN);
+			if(!operatorList.contains(Operator.LESS_THAN_OR_EQUAL))operatorList.add(Operator.LESS_THAN_OR_EQUAL);
+			if(!operatorList.contains(Operator.GREATER_THAN))operatorList.add(Operator.GREATER_THAN);
+			if(!operatorList.contains(Operator.GREATER_THAN_OR_EQUAL))operatorList.add(Operator.GREATER_THAN_OR_EQUAL);
+		}
+		operatorDdc = new DropDownChoice<Operator>("queryFilter.operator",new PropertyModel(item.getModelObject(), "queryFilter.operator"),	(List<Operator>) operatorList, new EnumChoiceRenderer<Operator>(QueryFilterForm.this));
 		operatorDdc.setOutputMarkupId(true);
 		operatorDdc.setRequired(true);
+		//Change event
 		operatorDdc.add(new AjaxFormComponentUpdatingBehavior("onchange"){
 			private static final long serialVersionUID = 1L;
-
 			@Override
 		    protected void onUpdate(AjaxRequestTarget target) {
 				Operator operatorFromDDC = item.getModelObject().getQueryFilter().getOperator();
-				item.get("secondValue").setEnabled(operatorFromDDC.equals(Operator.BETWEEN));
+				//ARK-1671(Improve extract filtering UI)
+				item.getModelObject().getQueryFilter().setValue(null);
+				item.getModelObject().getQueryFilter().setSecondValue(null);
+				item.get("value").setEnabled(true);
+				item.get("secondValue").setEnabled(false);
+				item.get("secondValue").setEnabled(operatorFromDDC.equals(Operator.BETWEEN));//second value enable iff between there
+				// both values are disabled either operator IS EMPTY or IS NOT EMPTY
+				item.get("value").setEnabled(!(operatorFromDDC.equals(Operator.IS_EMPTY)||operatorFromDDC.equals(Operator.IS_NOT_EMPTY)
+						||operatorFromDDC.equals(Operator.NOT_EQUALS_MISSING)||operatorFromDDC.equals(Operator.EQUALS_MISSING)));
+				//item.get("secondValue").setEnabled(!(operatorFromDDC.equals(Operator.IS_EMPTY)||operatorFromDDC.equals(Operator.IS_NOT_EMPTY)));
 				target.add(item.get("secondValue"));
+				target.add(item.get("value"));
 			}
 		});
-		item.add(operatorDdc);
+		item.addOrReplace(operatorDdc);
+		
+		//////////////////////////////////////////// This is the normal text value for the filter./////////////////////////////////////////////////////////
+		
+		valueTxtFld = new TextField<String>("value", new PropertyModel(item.getModelObject(), "queryFilter.value"));
+		valueTxtFld.add(new AjaxFormComponentUpdatingBehavior("onchange"){
+		    @Override
+		    protected void onUpdate(AjaxRequestTarget target) {
+		    	/* we may want to perform some live validation based on the type of field we are selecting */
+		   	log.info("onchange of VALUE");
+		    	target.add(feedbackPanel);
+		    } 
+		});
+		item.addOrReplace(valueTxtFld);
 		
 		secondValueTxtFld = new TextField<String>("secondValue", new PropertyModel(item.getModelObject(), "queryFilter.secondValue"));
 		secondValueTxtFld.add(new AjaxFormComponentUpdatingBehavior("onchange"){
@@ -586,17 +600,41 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 		    }
 		});
 		secondValueTxtFld.setOutputMarkupPlaceholderTag(true);
-		secondValueTxtFld.setEnabled(false);
-		item.add(secondValueTxtFld);
+		
+		//Enable and Disable value1 & 2 according to the operatorDc value when load.
+		if(operatorDdc.getModelObject()!=null && operatorDdc.getModelObject().equals(Operator.BETWEEN)){
+			secondValueTxtFld.setEnabled(true);
+		}else{
+			secondValueTxtFld.setEnabled(false);
+		}
+		if(operatorDdc.getModelObject()!=null && (operatorDdc.getModelObject().equals(Operator.IS_EMPTY)||
+				   operatorDdc.getModelObject().equals(Operator.IS_NOT_EMPTY))){
+					valueTxtFld.setEnabled(false);
+					secondValueTxtFld.setEnabled(false);
+		}
+		//Missing value when load.
+		if(operatorDdc.getModelObject()!=null && (operatorDdc.getModelObject().equals(Operator.EQUALS_MISSING)||
+				   operatorDdc.getModelObject().equals(Operator.NOT_EQUALS_MISSING))){
+					valueTxtFld.setEnabled(false);
+					secondValueTxtFld.setEnabled(false);
+		}
+		item.addOrReplace(secondValueTxtFld);
+		if(target!=null){
+			target.add(operatorDdc);
+			valueTxtFld.setModelValue(null);
+			secondValueTxtFld.setModelValue(null);
+			target.add(valueTxtFld);
+			target.add(secondValueTxtFld);
+			target.add(item);
+		}
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	}
 	
 	private void initFieldCategoryDdc(final ListItem<QueryFilterVO> item) {
-
-
+		
+		
 		List<FieldCategory> fieldCategoryList = Arrays.asList(FieldCategory.values()); 
-		fieldCategoryDdc = new DropDownChoice<FieldCategory>("fieldCategory", 
-				new PropertyModel(item.getModelObject(), "fieldCategory"), 
-				(List<FieldCategory>) fieldCategoryList, new EnumChoiceRenderer<FieldCategory>(QueryFilterForm.this));
+		fieldCategoryDdc = new DropDownChoice<FieldCategory>("fieldCategory",new PropertyModel(item.getModelObject(), "fieldCategory"),	(List<FieldCategory>) fieldCategoryList, new EnumChoiceRenderer<FieldCategory>(QueryFilterForm.this));
 		fieldCategoryDdc.setNullValid(false);
 		if(item.getModelObject()==null || item.getModelObject().getFieldCategory()==null){
 			fieldCategoryDdc.setDefaultModelObject(FieldCategory.DEMOGRAPHIC_FIELD);
@@ -617,6 +655,18 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 								new PropertyModel(item.getModelObject(), "queryFilter.demographicField"), 
 								(List<DemographicField>) demographicFieldCategoryList, choiceRenderer);
 						fieldDdc.setRequired(true);
+						fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange"){
+							private static final long	serialVersionUID	= 1L;
+							@Override
+						    protected void onUpdate(AjaxRequestTarget target) {
+						   	 log.debug("Change of fieldDDc");
+						   	initOperatorDdc(item, false,false,target);
+						    } 
+						    @Override 
+						   protected void onError(AjaxRequestTarget target, RuntimeException e) {
+						   	target.add(feedbackPanel);
+						   }
+						});
 						item.getModelObject().getQueryFilter().setBiospecimenField(null);
 						item.getModelObject().getQueryFilter().setBiocollectionField(null);
 						item.getModelObject().getQueryFilter().setCustomFieldDisplay(null);
@@ -633,6 +683,18 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 								new PropertyModel(item.getModelObject(), "queryFilter.biospecimenField"), 
 								(List<BiospecimenField>) BiospecimenFieldCategoryList, choiceRenderer);
 						fieldDdc.setRequired(true);
+						fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange"){
+							private static final long	serialVersionUID	= 1L;
+							@Override
+						    protected void onUpdate(AjaxRequestTarget target) {
+						   	 log.debug("Change of fieldDDc");
+						   	initOperatorDdc(item, false,false,target);
+						    } 
+						    @Override 
+						   protected void onError(AjaxRequestTarget target, RuntimeException e) {
+						   	target.add(feedbackPanel);
+						   }
+						});
 						//item.getModelObject().getQueryFilter().setBiospecimenField(null);
 						item.getModelObject().getQueryFilter().setBiocollectionField(null);
 						item.getModelObject().getQueryFilter().setCustomFieldDisplay(null);
@@ -650,6 +712,18 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 								new PropertyModel(item.getModelObject(), "queryFilter.biocollectionField"), 
 								(List<BiocollectionField>) biocollectionFieldCategoryList, choiceRenderer);
 						fieldDdc.setRequired(true);
+						fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange"){
+							private static final long	serialVersionUID	= 1L;
+							@Override
+						    protected void onUpdate(AjaxRequestTarget target) {
+						   	 log.debug("Change of fieldDDc");
+						   	initOperatorDdc(item, false,false, target);
+						    } 
+						    @Override 
+						   protected void onError(AjaxRequestTarget target, RuntimeException e) {
+						   	target.add(feedbackPanel);
+						   }
+						});
 						item.getModelObject().getQueryFilter().setBiospecimenField(null);
 						//item.getModelObject().getQueryFilter().setBiocollectionField(null);
 						item.getModelObject().getQueryFilter().setCustomFieldDisplay(null);
@@ -658,7 +732,7 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 						item.getModelObject().getQueryFilter().setPhenoDataSetFieldDisplay(null);
 						break;
 					}
-					
+					// Additional Operators
 					case SUBJECT_CFD:{		
 						ArkFunction arkFunction = iArkCommonService.getArkFunctionByName(Constants.FUNCTION_KEY_VALUE_SUBJECT_CUSTOM_FIELD);
 						
@@ -668,6 +742,19 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 								new PropertyModel(item.getModelObject(), "queryFilter.customFieldDisplay"), 
 								(List<CustomFieldDisplay>) fieldCategoryList, choiceRenderer);
 						fieldDdc.setRequired(true);
+						fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange"){
+							private static final long	serialVersionUID	= 1L;
+							@Override
+						    protected void onUpdate(AjaxRequestTarget target) {
+						   	 log.debug("Change of fieldDDc");
+						   	 Object object=getComponent().getDefaultModelObject();
+						   	 popUpModelWithEncodeValuesCustomFields(object, item, catFromDDC, target);
+						    } 
+						    @Override 
+						   protected void onError(AjaxRequestTarget target, RuntimeException e) {
+						   	target.add(feedbackPanel);
+						   }
+						});
 						item.getModelObject().getQueryFilter().setBiospecimenField(null);
 						item.getModelObject().getQueryFilter().setBiocollectionField(null);
 						//item.getModelObject().getQueryFilter().setCustomFieldDisplay(null);
@@ -676,16 +763,28 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 						item.getModelObject().getQueryFilter().setPhenoDataSetFieldDisplay(null);
 						break;
 					}
-
+					// Additional Operators
 					case PHENO_FD:{
 						ArkFunction arkFunction = iArkCommonService.getArkFunctionByName(Constants.FUNCTION_KEY_VALUE_DATA_DICTIONARY);
-						
 						List<PhenoDataSetFieldDisplay> fieldCategoryList = iPhenoService.getPhenoFieldDisplaysIn(getModelObject().getStudy(), arkFunction);
 						ChoiceRenderer<PhenoDataSetFieldDisplay> choiceRenderer = new ChoiceRenderer<PhenoDataSetFieldDisplay>("descriptiveNameIncludingCFGName", Constants.ID);
 						fieldDdc = new DropDownChoice<PhenoDataSetFieldDisplay>("queryFilter.field",
 								new PropertyModel(item.getModelObject(), "queryFilter.phenoDataSetFieldDisplay"),
 								(List<PhenoDataSetFieldDisplay>) fieldCategoryList, choiceRenderer);
 						fieldDdc.setRequired(true);
+						fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange"){
+							private static final long	serialVersionUID	= 1L;
+							@Override
+						    protected void onUpdate(AjaxRequestTarget target) {
+						   	 log.debug("Change of fieldDDc");
+							 Object object=getComponent().getDefaultModelObject();
+						   	 popUpModelWithEncodeValuesPhenoDataSetFields(object, item, catFromDDC, target);
+						    } 
+						    @Override 
+						   protected void onError(AjaxRequestTarget target, RuntimeException e) {
+						   	target.add(feedbackPanel);
+						   }
+						});
 						item.getModelObject().getQueryFilter().setBiospecimenField(null);
 						item.getModelObject().getQueryFilter().setBiocollectionField(null);
 						item.getModelObject().getQueryFilter().setCustomFieldDisplay(null);
@@ -694,16 +793,29 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 						//item.getModelObject().getQueryFilter().setPhenoDataSetFieldDisplay(null);
 						break;
 					}
-
+					// Additional Operators
 					case BIOCOLLECTION_CFD:{
 						ArkFunction arkFunction = iArkCommonService.getArkFunctionByName(Constants.FUNCTION_KEY_VALUE_LIMS_CUSTOM_FIELD);
-						
-						List<CustomFieldDisplay> fieldCategoryList = iArkCommonService.getCustomFieldDisplaysIn(getModelObject().getStudy(), arkFunction);
+						CustomFieldType cusFldTypeBioCollection=iArkCommonService.getCustomFieldTypeByName(au.org.theark.core.Constants.BIOCOLLECTION);
+						List<CustomFieldDisplay> fieldCategoryList = iArkCommonService.getCustomFieldDisplaysInForCustomFieldType(getModelObject().getStudy(),cusFldTypeBioCollection,arkFunction);
 						ChoiceRenderer<CustomFieldDisplay> choiceRenderer = new ChoiceRenderer<CustomFieldDisplay>(Constants.CUSTOM_FIELD_DOT_NAME, Constants.ID);
 						fieldDdc = new DropDownChoice<CustomFieldDisplay>("queryFilter.field", 
 								new PropertyModel(item.getModelObject(), "queryFilter.customFieldDisplay"), 
 								(List<CustomFieldDisplay>) fieldCategoryList, choiceRenderer);
 						fieldDdc.setRequired(true);
+						fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange"){
+							private static final long	serialVersionUID	= 1L;
+							@Override
+						    protected void onUpdate(AjaxRequestTarget target) {
+						   	 log.debug("Change of fieldDDc");
+						   	 Object object=getComponent().getDefaultModelObject();
+						   	 popUpModelWithEncodeValuesCustomFields(object, item, catFromDDC, target);
+						    } 
+						    @Override 
+						   protected void onError(AjaxRequestTarget target, RuntimeException e) {
+						   	target.add(feedbackPanel);
+						   }
+						});
 						item.getModelObject().getQueryFilter().setBiospecimenField(null);
 						item.getModelObject().getQueryFilter().setBiocollectionField(null);
 						//item.getModelObject().getQueryFilter().setCustomFieldDisplay(null);
@@ -712,16 +824,29 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 						item.getModelObject().getQueryFilter().setPhenoDataSetFieldDisplay(null);
 						break;
 					}
-					
+					// Additional Operators
 					case BIOSPECIMEN_CFD:{		
-						ArkFunction arkFunction = iArkCommonService.getArkFunctionByName(Constants.FUNCTION_KEY_VALUE_BIOSPECIMEN);
-						
-						List<CustomFieldDisplay> fieldCategoryList = iArkCommonService.getCustomFieldDisplaysIn(getModelObject().getStudy(), arkFunction);
+						ArkFunction arkFunction = iArkCommonService.getArkFunctionByName(Constants.FUNCTION_KEY_VALUE_LIMS_CUSTOM_FIELD);
+						CustomFieldType cusFldTypeBiospecimen=iArkCommonService.getCustomFieldTypeByName(au.org.theark.core.Constants.BIOSPECIMEN);
+						List<CustomFieldDisplay> fieldCategoryList = iArkCommonService.getCustomFieldDisplaysInForCustomFieldType(getModelObject().getStudy(),cusFldTypeBiospecimen,arkFunction);
 						ChoiceRenderer<CustomFieldDisplay> choiceRenderer = new ChoiceRenderer<CustomFieldDisplay>(Constants.CUSTOM_FIELD_DOT_NAME, Constants.ID);
 						fieldDdc = new DropDownChoice<CustomFieldDisplay>("queryFilter.field", 
 								new PropertyModel(item.getModelObject(), "queryFilter.customFieldDisplay"), 
 								(List<CustomFieldDisplay>) fieldCategoryList, choiceRenderer);
 						fieldDdc.setRequired(true);
+						fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange"){
+							private static final long	serialVersionUID	= 1L;
+							@Override
+						    protected void onUpdate(AjaxRequestTarget target) {
+						   	 log.debug("Change of fieldDDc");
+						   	 Object object=getComponent().getDefaultModelObject();
+						   	 popUpModelWithEncodeValuesCustomFields(object, item, catFromDDC, target);
+						    } 
+						    @Override 
+						   protected void onError(AjaxRequestTarget target, RuntimeException e) {
+						   	target.add(feedbackPanel);
+						   }
+						});
 						item.getModelObject().getQueryFilter().setBiospecimenField(null);
 						item.getModelObject().getQueryFilter().setBiocollectionField(null);
 						//item.getModelObject().getQueryFilter().setCustomFieldDisplay(null);
@@ -738,6 +863,18 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 								new PropertyModel<ConsentStatusField>(item.getModelObject(), "queryFilter.consentStatusField"),
 								(List<ConsentStatusField>) consentStatusFieldCategoryList, choiceRenderer);
 						fieldDdc.setRequired(true);
+						fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange"){
+							private static final long	serialVersionUID	= 1L;
+							@Override
+						    protected void onUpdate(AjaxRequestTarget target) {
+						   	 log.debug("Change of fieldDDc");
+						   	 initOperatorDdc(item, false,false,target);
+						    } 
+						    @Override 
+						   protected void onError(AjaxRequestTarget target, RuntimeException e) {
+						   	target.add(feedbackPanel);
+						   }
+						});
 						item.getModelObject().getQueryFilter().setBiospecimenField(null);
 						item.getModelObject().getQueryFilter().setBiocollectionField(null);
 						item.getModelObject().getQueryFilter().setCustomFieldDisplay(null);
@@ -751,29 +888,8 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 
 				fieldDdc.setOutputMarkupId(true);
 				fieldDdc.setRequired(true);
-				fieldDdc.add(new AjaxFormComponentUpdatingBehavior("onchange"){
-				    /**
-					 * 
-					 */
-					private static final long	serialVersionUID	= 1L;
-
-					@Override
-				    protected void onUpdate(AjaxRequestTarget target) {
-				   	 log.debug("Change of fieldDDc");
-				    } 
-				    
-				    @Override 
-				   protected void onError(AjaxRequestTarget target, RuntimeException e) {
-				   	target.add(feedbackPanel);
-				   }
-				});
 				item.addOrReplace(fieldDdc);
 				target.add(item);
-
-				/*item.setOutputMarkupId(true);
-				item.addOrReplace(fieldDdc);
-				target.add(item);*/
-							
 		    } 
 		});
 		item.add(fieldCategoryDdc);
@@ -895,5 +1011,73 @@ public class QueryFilterForm extends Form<QueryFilterListVO> {
 		
 				
 		return ok;
+	}
+	/**
+ 	 * 
+ 	 * @param target
+ 	 */
+ private void textChangeCreateFilterButton(AjaxRequestTarget target) {
+ 		AjaxButton ajaxButton = (AjaxButton) arkCrudContainerVO.getDetailPanelFormContainer().get("createFilters");
+ 		ajaxButton.add(new AttributeModifier("value", new Model<String>(iArkCommonService.isAnyFilterAddedForSearch(classModel.getObject().getSearch())?"Edit Filters":"Create Filters")));
+ 		target.add(ajaxButton);
+ 		target.add(arkCrudContainerVO.getDetailPanelFormContainer());
+ }
+ /**
+  * 
+  * @param object
+  * @param item
+  * @param catFromItem
+  * @param target
+  */
+ private void popUpModelWithEncodeValuesCustomFields(final Object object,final ListItem<QueryFilterVO> item,FieldCategory catFromItem, AjaxRequestTarget target) {
+		if (object instanceof CustomFieldDisplay) {
+			isMissingValueExsist = (((CustomFieldDisplay) object).getCustomField().getMissingValue() != null);
+			isEncodedValueExsists = (((CustomFieldDisplay) object).getCustomField().getEncodedValues() != null);
+		}
+		initOperatorDdc(item, true && isMissingValueExsist, isEncodedValueExsists, target);
+		if (isEncodedValueExsists) {
+			IModel model = new Model<QueryFilterVO>(new QueryFilterVO(catFromItem, ((QueryFilterVO) item.getModelObject()).getQueryFilter()));
+			modalContentPanel = new EncodePanel("content", feedbackPanel, model, modalWindowEncoded,arkCrudContainerVO);
+			// Set the modalWindow title and content
+			modalWindowEncoded.setTitle("Select Encode values");
+			modalWindowEncoded.setContent(modalContentPanel);
+			modalWindowEncoded.setWindowClosedCallback(new WindowClosedCallback() {
+				private static final long serialVersionUID = 1L;
+				@Override
+				public void onClose(AjaxRequestTarget target) {
+					target.add(item.get("value").setEnabled(false));
+				}
+			});
+			modalWindowEncoded.show(target);
+		}
+	}
+ /**
+  * 
+  * @param object
+  * @param item
+  * @param catFromItem
+  * @param target
+  */
+ private void popUpModelWithEncodeValuesPhenoDataSetFields(final Object object,final ListItem<QueryFilterVO> item,FieldCategory catFromItem, AjaxRequestTarget target) {
+		if (object instanceof PhenoDataSetFieldDisplay) {
+			isMissingValueExsist = (((PhenoDataSetFieldDisplay) object).getPhenoDataSetField().getMissingValue() != null);
+			isEncodedValueExsists = (((PhenoDataSetFieldDisplay) object).getPhenoDataSetField().getEncodedValues() != null);
+		}
+		initOperatorDdc(item, true && isMissingValueExsist, isEncodedValueExsists, target);
+		if (isEncodedValueExsists) {
+			IModel model = new Model<QueryFilterVO>(new QueryFilterVO(catFromItem, ((QueryFilterVO) item.getModelObject()).getQueryFilter()));
+			modalContentPanel = new EncodePanel("content", feedbackPanel, model, modalWindowEncoded,arkCrudContainerVO);
+			// Set the modalWindow title and content
+			modalWindowEncoded.setTitle("Select Encode values");
+			modalWindowEncoded.setContent(modalContentPanel);
+			modalWindowEncoded.setWindowClosedCallback(new WindowClosedCallback() {
+				private static final long serialVersionUID = 1L;
+				@Override
+				public void onClose(AjaxRequestTarget target) {
+					target.add(item.get("value").setEnabled(false));
+				}
+			});
+			modalWindowEncoded.show(target);
+		}
 	}
 }

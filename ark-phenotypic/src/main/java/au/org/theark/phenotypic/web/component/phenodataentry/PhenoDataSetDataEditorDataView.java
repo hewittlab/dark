@@ -35,6 +35,7 @@ import org.apache.wicket.markup.repeater.data.DataView;
 import org.apache.wicket.markup.repeater.data.IDataProvider;
 import org.apache.wicket.model.Model;
 import org.apache.wicket.model.PropertyModel;
+import org.apache.wicket.spring.injection.annot.SpringBean;
 import org.apache.wicket.util.convert.ConversionException;
 import org.apache.wicket.util.convert.IConverter;
 import org.apache.wicket.validation.validator.DateValidator;
@@ -47,12 +48,15 @@ import au.org.theark.core.Constants;
 import au.org.theark.core.model.pheno.entity.PhenoDataSetField;
 import au.org.theark.core.model.pheno.entity.PhenoDataSetFieldDisplay;
 import au.org.theark.core.model.study.entity.IPhenoDataSetFieldData;
+import au.org.theark.core.service.IArkCommonService;
+import au.org.theark.core.web.component.customfield.dataentry.AbstractDataEntryPanel;
 import au.org.theark.core.web.component.customfield.dataentry.CheckGroupDataEntryPanel;
 import au.org.theark.core.web.component.customfield.dataentry.DateDataEntryPanel;
 import au.org.theark.core.web.component.customfield.dataentry.DropDownChoiceDataEntryPanel;
 import au.org.theark.core.web.component.customfield.dataentry.EncodedValueVO;
 import au.org.theark.core.web.component.customfield.dataentry.NumberDataEntryPanel;
 import au.org.theark.core.web.component.customfield.dataentry.TextDataEntryPanel;
+import au.org.theark.core.web.component.customfield.dataentry.TextMultiLineDataEntryPanel;
 
 /**
  * PhenoDataSetDataEditorDataView is designed to assist in rendering a phenoDataSetField Data entry panel
@@ -68,6 +72,9 @@ public abstract class PhenoDataSetDataEditorDataView<T extends IPhenoDataSetFiel
 	private static final Logger				log					= LoggerFactory.getLogger(PhenoDataSetDataEditorDataView.class);
 
 	private static final long	serialVersionUID	= 1L;
+	
+	@SpringBean(name = au.org.theark.core.Constants.ARK_COMMON_SERVICE)
+	private IArkCommonService		iArkCommonService;
 
 	protected PhenoDataSetDataEditorDataView(String id, IDataProvider<T> dataProvider) {
 		super(id, dataProvider);
@@ -93,9 +100,10 @@ public abstract class PhenoDataSetDataEditorDataView<T extends IPhenoDataSetFiel
 		Panel dataValueEntryPanel;
 		String fieldTypeName = pf.getFieldType().getName();
 		String encodedValues = pf.getEncodedValues();
-		Boolean requiredField = aCustomData.getPhenoDataSetFieldDisplay().getRequired();
+		//Boolean requiredField = aCustomData.getPhenoDataSetFieldDisplay().getRequired();
+		Boolean requiredField = pf.getRequired();
 		if (fieldTypeName.equals(au.org.theark.core.web.component.customfield.Constants.DATE_FIELD_TYPE_NAME)) {
-			if(pf.getDefaultValue() != null && item.getModelObject().getDateDataValue() == null) {
+			if(pf.getDefaultValue() != null && item.getModelObject().getDateDataValue() == null && !pf.getDefaultValue().trim().isEmpty()) {
 				try {
 					item.getModelObject().setDateDataValue(new SimpleDateFormat(Constants.DD_MM_YYYY).parse(pf.getDefaultValue()));
 				} catch (ParseException e) {
@@ -107,7 +115,7 @@ public abstract class PhenoDataSetDataEditorDataView<T extends IPhenoDataSetFiel
 														new PropertyModel<Date>(item.getModel(), "dateDataValue"),
 														new Model<String>(labelModel));
 			dateDataEntryPanel.setErrorDataValueModel(new PropertyModel<String>(item.getModel(), "errorDataValue"));
-			dateDataEntryPanel.setUnitsLabelModel(new PropertyModel<String>(item.getModel(), "phenoDataSetFieldDisplay.phenoDataSetField.unitType.name"));
+			dateDataEntryPanel.setUnitsLabelModel(new PropertyModel<String>(item.getModel(), "phenoDataSetFieldDisplay.phenoDataSetField.unitTypeInText"));
 
 			if (pf.getMinValue() != null && !pf.getMinValue().isEmpty()) {
 				IConverter<Date> dateConverter = dateDataEntryPanel.getDateConverter();
@@ -157,19 +165,22 @@ public abstract class PhenoDataSetDataEditorDataView<T extends IPhenoDataSetFiel
 
 				ChoiceRenderer<EncodedValueVO> choiceRenderer = new ChoiceRenderer<EncodedValueVO>("value", "key");
 				
- 				if(pfd.getAllowMultiselect()){
+ 				if(pfd.getPhenoDataSetField().getAllowMultiselect()){
 
  					CheckGroupDataEntryPanel cgdePanel = new CheckGroupDataEntryPanel("dataValueEntryPanel", new PropertyModel<String>(item.getModel(), "textDataValue"), 
 															new Model<String>(labelModel), choiceList, choiceRenderer); 
 					
 					cgdePanel.setErrorDataValueModel(new PropertyModel<String>(item.getModel(), "errorDataValue"));
-					cgdePanel.setUnitsLabelModel(new PropertyModel<String>(item.getModel(), "phenoDataSetFieldDisplay.phenoDataSetField.unitType.name"));
+					cgdePanel.setUnitsLabelModel(new PropertyModel<String>(item.getModel(), "phenoDataSetFieldDisplay.phenoDataSetField.unitTypeInText"));
 
 					if (pf.getMissingValue() != null && !pf.getMissingValue().isEmpty()) {
 						cgdePanel.setMissingValue(pf.getMissingValue());
 					}
 					if (requiredField != null && requiredField == true) {
 						cgdePanel.setRequired(true);
+					}
+					if(pf.getDefaultValue() != null && item.getModelObject().getTextDataValue() == null) {
+						item.getModelObject().setTextDataValue(pf.getDefaultValue());
 					}
 					
 					dataValueEntryPanel = cgdePanel;
@@ -183,7 +194,7 @@ public abstract class PhenoDataSetDataEditorDataView<T extends IPhenoDataSetFiel
 								new DropDownChoiceDataEntryPanel("dataValueEntryPanel", new PropertyModel<String>(item.getModel(), "textDataValue"), 
 																				new Model<String>(labelModel), choiceList, choiceRenderer);
 					ddcPanel.setErrorDataValueModel(new PropertyModel<String>(item.getModel(), "errorDataValue"));
-					ddcPanel.setUnitsLabelModel(new PropertyModel<String>(item.getModel(), "phenoDataSetFieldDisplay.phenoDataSetField.unitType.name"));
+					ddcPanel.setUnitsLabelModel(new PropertyModel<String>(item.getModel(), "phenoDataSetFieldDisplay.phenoDataSetField.unitTypeInText"));
 					
 					if (pf.getMissingValue() != null && !pf.getMissingValue().isEmpty()) {
 						ddcPanel.setMissingValue(pf.getMissingValue());
@@ -200,28 +211,46 @@ public abstract class PhenoDataSetDataEditorDataView<T extends IPhenoDataSetFiel
 					if(pf.getDefaultValue() != null && item.getModelObject().getTextDataValue() == null) {
 						item.getModelObject().setTextDataValue(pf.getDefaultValue());
 					}
-					TextDataEntryPanel textDataEntryPanel = new TextDataEntryPanel("dataValueEntryPanel", 
+					
+					AbstractDataEntryPanel<?> textDataEntryPanel;
+					if (pf.getMultiLineDisplay()) {
+						// Text multi line
+						 textDataEntryPanel = new TextMultiLineDataEntryPanel("dataValueEntryPanel", new PropertyModel<String>(item.getModel(), "textDataValue"),new Model<String>(labelModel));
+						 ((TextMultiLineDataEntryPanel)textDataEntryPanel).setTextFieldSizeInPixel(Integer.parseInt(iArkCommonService.getCustomFieldTextFieldWidthInPixel().getPropertyValue())
+									,Integer.parseInt(iArkCommonService.getCustomFieldMultiLineTexFieldtHeightInPixel().getPropertyValue()));
+					} else {
+						// Text data single line
+						 textDataEntryPanel = new TextDataEntryPanel("dataValueEntryPanel",	new PropertyModel<String>(item.getModel(), "textDataValue"),new Model<String>(labelModel));
+						 ((TextDataEntryPanel)textDataEntryPanel).setTextFieldSizeInPixel(Integer.parseInt(iArkCommonService.getCustomFieldTextFieldWidthInPixel().getPropertyValue()));
+					}
+						textDataEntryPanel.setErrorDataValueModel(new PropertyModel<String>(item.getModel(), "errorDataValue"));
+						textDataEntryPanel.setUnitsLabelModel(new PropertyModel<String>(item.getModel(),"phenoDataSetFieldDisplay.phenoDataSetField.unitTypeInText"));
+	
+						if (requiredField != null && requiredField == true) {
+							textDataEntryPanel.setRequired(true);
+						}
+						dataValueEntryPanel = textDataEntryPanel;
+					/*TextDataEntryPanel textDataEntryPanel = new TextDataEntryPanel("dataValueEntryPanel", 
 																										new PropertyModel<String>(item.getModel(), "textDataValue"), 
 																										new Model<String>(labelModel));
 					textDataEntryPanel.setErrorDataValueModel(new PropertyModel<String>(item.getModel(), "errorDataValue"));
-					textDataEntryPanel.setUnitsLabelModel(new PropertyModel<String>(item.getModel(), "phenoDataSetFieldDisplay.phenoDataSetField.unitType.name"));
+					textDataEntryPanel.setUnitsLabelModel(new PropertyModel<String>(item.getModel(), "phenoDataSetFieldDisplay.phenoDataSetField.unitTypeInText"));
 					textDataEntryPanel.setTextFieldSize(60);
-					
 					if (requiredField != null && requiredField == true) {
 						 textDataEntryPanel.setRequired(true);
 					}
-					dataValueEntryPanel = textDataEntryPanel;
+					dataValueEntryPanel = textDataEntryPanel;*/
 				}
 				else if (fieldTypeName.equals(au.org.theark.core.web.component.customfield.Constants.NUMBER_FIELD_TYPE_NAME)) {
 					// Number data
-					if(pf.getDefaultValue() != null && item.getModelObject().getNumberDataValue() == null) {
-						item.getModelObject().setNumberDataValue(Double.parseDouble(pf.getDefaultValue()));;
+					if(pf.getDefaultValue() != null && item.getModelObject().getNumberDataValue() == null && !pf.getDefaultValue().trim().isEmpty()) {
+						item.getModelObject().setNumberDataValue(Double.parseDouble(pf.getDefaultValue()));
 					}
 					NumberDataEntryPanel numberDataEntryPanel = new NumberDataEntryPanel("dataValueEntryPanel", 
 																						new PropertyModel<Double>(item.getModel(), "numberDataValue"), 
 																						new Model<String>(labelModel));
 					numberDataEntryPanel.setErrorDataValueModel(new PropertyModel<String>(item.getModel(), "errorDataValue"));
-					numberDataEntryPanel.setUnitsLabelModel(new PropertyModel<String>(item.getModel(), "phenoDataSetFieldDisplay.phenoDataSetField.unitType.name"));
+					numberDataEntryPanel.setUnitsLabelModel(new PropertyModel<String>(item.getModel(), "phenoDataSetFieldDisplay.phenoDataSetField.unitTypeInText"));
 										
 					if (pf.getMinValue() != null && !pf.getMinValue().isEmpty()) {
 						IConverter<Double> doubleConverter = numberDataEntryPanel.getNumberConverter();

@@ -1,7 +1,10 @@
 package au.org.theark.phenotypic.util;
 
+import java.util.Date;
+
 import au.org.theark.core.Constants;
 import au.org.theark.core.model.pheno.entity.PhenoDataSetField;
+import au.org.theark.core.model.study.entity.CustomField;
 
 /**
  * @author nivedann
@@ -229,6 +232,87 @@ public class PhenoDataSetFieldValidationMessage {
 		stringBuffer.append(columnName);
 		return (stringBuffer.toString());
 	}
-	
+	public static String fieldDefaultValueNotDefinedType(PhenoDataSetField field) {
+		stringBuffer = new StringBuffer();
+		stringBuffer.append("Error: ");
+		stringBuffer.append("The field ");
+		stringBuffer.append(field.getName().toString());
+		stringBuffer.append(" default value ");
+		stringBuffer.append(field.getDefaultValue().toString());
+		stringBuffer.append(" is not the defined format of: ");
+		stringBuffer.append(field.getFieldType().getName());
+		return (stringBuffer.toString());
+	}
+	public static String fieldDefaultValueNotINEncodedLst(PhenoDataSetField field) {
+		stringBuffer = new StringBuffer();
+		stringBuffer.append("Error: ");
+		stringBuffer.append("The field ");
+		stringBuffer.append(field.getName().toString());
+		stringBuffer.append(" default value ");
+		stringBuffer.append(field.getDefaultValue().toString());
+		stringBuffer.append(" is not in the encorded list.");
+		return (stringBuffer.toString());
+	}
+	public static String fieldDefaultValueInsideMinAndMaxRange(PhenoDataSetField field) {
+		stringBuffer = new StringBuffer();
+		stringBuffer.append("Error: ");
+		stringBuffer.append("The field ");
+		stringBuffer.append(field.getName().toString());
+		stringBuffer.append(" default value ");
+		stringBuffer.append(field.getDefaultValue().toString());
+		stringBuffer.append(" is not in side the range of min:"+field.getMinValue()+"and max"+field.getMaxValue());
+		return (stringBuffer.toString());
+	}
+	public static String fieldDefaultDateInsideMinAndMaxRange(PhenoDataSetField field,Date defDate,Date minDate,Date maxDate) {
+		stringBuffer = new StringBuffer();
+		stringBuffer.append("Error: ");
+		stringBuffer.append("The field ");
+		stringBuffer.append(field.getName().toString());
+		stringBuffer.append(" default date ");
+		stringBuffer.append(defDate);
+		stringBuffer.append(" is not in side the range of min date:"+minDate+"and max date"+maxDate);
+		return (stringBuffer.toString());
+	}
+	public static String fieldDefinitionDefaultValueNotValidDate(PhenoDataSetField field) {
+		stringBuffer = new StringBuffer();
+		stringBuffer.append("Error: ");
+		stringBuffer.append("The field ");
+		stringBuffer.append(field.getName().toString());
+		stringBuffer.append(" default value ");
+		stringBuffer.append(field.getDefaultValue().toString());
+		stringBuffer.append(" is not in the valid date format of: ");
+		stringBuffer.append(Constants.DD_MM_YYYY.toLowerCase());
+		return (stringBuffer.toString());
+	}
+	public static String fieldDefinitionDefaultValueValidatingNull(PhenoDataSetField field) {
+		stringBuffer = new StringBuffer();
+		stringBuffer.append("Error: ");
+		stringBuffer.append("The field ");
+		stringBuffer.append(field.getName().toString());
+		stringBuffer.append(" default value ");
+		stringBuffer.append(field.getDefaultValue().toString());
+		stringBuffer.append(" have an issue when validating.");
+		return (stringBuffer.toString());
+	}
+	public static String nonMultiLineAllowWithEncodedValues(String fieldName,String columnName) {
+		stringBuffer = new StringBuffer();
+		stringBuffer.append("Error: ");
+		stringBuffer.append("The field  ");
+		stringBuffer.append(fieldName);
+		stringBuffer.append(", If correct encoded values contains in the field ");
+		stringBuffer.append(columnName);
+		stringBuffer.append(" must not accept data when the field type is character type.");
+		return (stringBuffer.toString());
+	}
+	public static String nonChatacterFieldTypeMultiLineNotAccepted(String fieldName,String columnName) {
+		stringBuffer = new StringBuffer();
+		stringBuffer.append("Error: ");
+		stringBuffer.append("The field  ");
+		stringBuffer.append(fieldName);
+		stringBuffer.append(", when field type is NOT a character type  ");
+		stringBuffer.append(columnName);
+		stringBuffer.append(" is not allowed any value.");
+		return (stringBuffer.toString());
+	}
 
 }

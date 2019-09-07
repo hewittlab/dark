@@ -24,6 +24,7 @@ import org.apache.wicket.markup.html.panel.FeedbackPanel;
 import org.apache.wicket.markup.html.panel.Panel;
 import org.apache.wicket.model.IModel;
 
+import au.org.theark.core.vo.ArkCrudContainerVO;
 import au.org.theark.core.vo.QueryFilterListVO;
 import au.org.theark.report.web.component.dataextraction.filter.form.QueryFilterForm;
 
@@ -33,15 +34,20 @@ public class QueryFilterPanel extends Panel {
 	protected FeedbackPanel							feedbackPanel;
 	private QueryFilterForm					form;
 
-	public QueryFilterPanel(String id, FeedbackPanel feedbackPanel, IModel<QueryFilterListVO> model, ModalWindow modalWindow) {
+	public QueryFilterPanel(String id, FeedbackPanel feedbackPanel, IModel<QueryFilterListVO> model, ModalWindow modalWindow,ArkCrudContainerVO arkCrudContainerVO) {
 		super(id, model);
 		this.feedbackPanel = feedbackPanel;
-		initialisePanel(model, modalWindow);
+		initialisePanel(model, modalWindow,arkCrudContainerVO);
 		setOutputMarkupPlaceholderTag(true);
 	}
 
-	public void initialisePanel(IModel<QueryFilterListVO> model, ModalWindow modalWindow) {
-		form = new QueryFilterForm("queryFilterForm", model, modalWindow);
+	public void initialisePanel(IModel<QueryFilterListVO> model, ModalWindow modalWindow,ArkCrudContainerVO arkCrudContainerVO) {
+		ModalWindow modalWindowEncoded = new ModalWindow("detailModalWindowEncoded");
+		modalWindowEncoded.setInitialHeight(80);
+		modalWindowEncoded.setInitialWidth(300);
+		modalWindowEncoded.setMinimalHeight(80);
+		modalWindowEncoded.setMinimalWidth(300);
+		form = new QueryFilterForm("queryFilterForm", model, modalWindow,modalWindowEncoded,arkCrudContainerVO);
 		form.initialiseForm();
 		add(form);
 	}

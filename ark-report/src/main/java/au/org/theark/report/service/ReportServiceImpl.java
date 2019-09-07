@@ -19,33 +19,38 @@
 package au.org.theark.report.service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-import au.org.theark.core.model.pheno.entity.PhenoDataSetGroup;
-import au.org.theark.report.model.vo.*;
-import au.org.theark.report.model.vo.report.*;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.subject.Subject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import au.org.theark.core.dao.IStudyDao;
+import au.org.theark.core.exception.ArkFileNotFoundException;
+import au.org.theark.core.exception.ArkSystemException;
 import au.org.theark.core.exception.EntityNotFoundException;
 import au.org.theark.core.model.pheno.entity.PhenoDataSetCollection;
+import au.org.theark.core.model.pheno.entity.PhenoDataSetGroup;
 import au.org.theark.core.model.report.entity.ReportOutputFormat;
 import au.org.theark.core.model.report.entity.ReportTemplate;
+import au.org.theark.core.model.report.entity.Search;
+import au.org.theark.core.model.report.entity.SearchFile;
 import au.org.theark.core.model.study.entity.Address;
 import au.org.theark.core.model.study.entity.ArkUser;
+import au.org.theark.core.model.study.entity.AuditHistory;
 import au.org.theark.core.model.study.entity.Consent;
 import au.org.theark.core.model.study.entity.ConsentStatus;
-import au.org.theark.core.model.study.entity.CustomFieldGroup;
 import au.org.theark.core.model.study.entity.LinkSubjectStudy;
-import au.org.theark.core.model.study.entity.OtherID;
 import au.org.theark.core.model.study.entity.Person;
 import au.org.theark.core.model.study.entity.Phone;
 import au.org.theark.core.model.study.entity.Study;
@@ -54,12 +59,28 @@ import au.org.theark.core.model.worktracking.entity.Researcher;
 import au.org.theark.core.service.IArkCommonService;
 import au.org.theark.core.vo.ArkUserVO;
 import au.org.theark.report.model.dao.IReportDao;
+import au.org.theark.report.model.vo.BiospecimenDetailsReportVO;
+import au.org.theark.report.model.vo.BiospecimenSummaryReportVO;
+import au.org.theark.report.model.vo.ConsentDetailsReportVO;
+import au.org.theark.report.model.vo.FieldDetailsReportVO;
+import au.org.theark.report.model.vo.PhenoDataSetFieldDetailsReportVO;
+import au.org.theark.report.model.vo.ResearcherCostResportVO;
+import au.org.theark.report.model.vo.StudyComponentReportVO;
+import au.org.theark.report.model.vo.report.BiospecimenDetailsDataRow;
+import au.org.theark.report.model.vo.report.BiospecimenSummaryDataRow;
+import au.org.theark.report.model.vo.report.ConsentDetailsDataRow;
+import au.org.theark.report.model.vo.report.FieldDetailsDataRow;
+import au.org.theark.report.model.vo.report.PhenoDataSetFieldDetailsDataRow;
+import au.org.theark.report.model.vo.report.ResearcherCostDataRow;
+import au.org.theark.report.model.vo.report.ResearcherDetailCostDataRow;
+import au.org.theark.report.model.vo.report.StudyComponentDetailsDataRow;
+import au.org.theark.report.model.vo.report.StudyUserRolePermissionsDataRow;
 
 @Transactional
 @Service(Constants.REPORT_SERVICE)
 public class ReportServiceImpl implements IReportService {
 
-//	private static Logger		log	= LoggerFactory.getLogger(ReportServiceImpl.class);
+	private static Logger		log	= LoggerFactory.getLogger(ReportServiceImpl.class);
 
 	private IArkCommonService	arkCommonService;
 	private IStudyDao				studyDao;
@@ -182,9 +203,9 @@ public class ReportServiceImpl implements IReportService {
 				homePhone.append(aPhone.getPhoneNumber());
 			}
 			String email = "-NA-";
-			if (p.getPreferredEmail() != null) {
-				email = p.getPreferredEmail();
-			}
+//			if (p.getPreferredEmail() != null) {
+//				email = p.getPreferredEmail();
+//			}
 			String sex = p.getGenderType().getName().substring(0, 1);
 			Date consentDate = subject.getConsentDate();
 			consentDetailsList.add(new ConsentDetailsDataRow(subjectUID, otherID_Source, otherID, consentStatus, subjectStatus, title, firstName, lastName, streetAddress, suburb, state, postcode, country, workPhone.toString(), homePhone.toString(),
@@ -329,9 +350,9 @@ public class ReportServiceImpl implements IReportService {
 			//Address a = reportDao.getBestAddress(subject);
 			Address a = reportDao.getBestAddressWithOutNewQueries(subject);
 /*  */
-			if (p.getPreferredEmail() != null) {
-				email = p.getPreferredEmail();
-			}
+//			if (p.getPreferredEmail() != null) {
+//				email = p.getPreferredEmail();
+//			}
 			String sex = p.getGenderType().getName().substring(0, 1);
 			consentRow.setSex(sex); 
 
@@ -441,6 +462,152 @@ public class ReportServiceImpl implements IReportService {
 			BiospecimenDetailsReportVO biospecimenDetailReportVO) {
 		// TODO Auto-generated method stub
 		return reportDao.getBiospecimenDetailsData(biospecimenDetailReportVO);
+	}
+
+	public List<StudyComponentDetailsDataRow> getStudyComponentDataRow(StudyComponentReportVO studyComponentReportVO) throws ArkSystemException, EntityNotFoundException {
+		List<StudyComponentDetailsDataRow> results=reportDao.getStudyComponentDataRow(studyComponentReportVO);
+		for (StudyComponentDetailsDataRow studyComponentDetailsDataRow : results) {
+			Address reportAddress=pickPersonReportAddress(studyDao.getPerson(studyComponentDetailsDataRow.getPersonId()));
+				if(reportAddress!=null && reportAddress.getStreetAddress()!=null && reportAddress.getAddressLineOne()!=null){
+					studyComponentDetailsDataRow.setStreetAddress((reportAddress.getAddressLineOne()+" "+reportAddress.getStreetAddress()));
+				}else if(reportAddress!=null && reportAddress.getStreetAddress()==null && reportAddress.getAddressLineOne()!=null) {
+					studyComponentDetailsDataRow.setStreetAddress((reportAddress.getAddressLineOne()));
+				}else if(reportAddress!=null && reportAddress.getStreetAddress()!=null && reportAddress.getAddressLineOne()==null){
+					studyComponentDetailsDataRow.setStreetAddress((reportAddress.getStreetAddress()));
+				}
+				studyComponentDetailsDataRow.setSuburb((reportAddress!=null && reportAddress.getCity()!=null)?reportAddress.getCity():"");
+				studyComponentDetailsDataRow.setState((reportAddress!=null && reportAddress.getState().getName()!=null)?reportAddress.getState().getName():"");
+				studyComponentDetailsDataRow.setPostcode((reportAddress!=null && reportAddress.getPostCode()!=null)?reportAddress.getPostCode():"");
+				studyComponentDetailsDataRow.setCountry((reportAddress!=null && reportAddress.getCountry().getName()!=null)?reportAddress.getCountry().getName():"");
+		}
+		return results;
+	}
+	
+	/**
+	 * 
+	 * @param person
+	 * @return
+	 * @throws ArkSystemException
+	 */
+	private Address pickPersonReportAddress(Person person) throws ArkSystemException{
+			Address pickAddress=null;
+			List<String> addressStatus = Arrays.asList("Current", "Current - Alternative", "Current - Under Investigation");	
+			List<Address> addressLst=studyDao.getPersonAddressList(person.getId(), null);
+			//1.Preferred
+			for (Address address : addressLst) {
+				if(address.getPreferredMailingAddress()){
+					pickAddress=address;
+					break;
+				}
+			}
+			// if still pickAddress is not found go for second option proceed.................
+			if(pickAddress==null){
+				//2.If no preferred set, then most recent (according to Date Received) current address. If no date received, then any current.
+				//3.If no current address, then most recent current alternative.
+				//4.If no current alternative, then most recent current under investigation.
+				//5.If no current under investigation, don't include an address.
+				int i=0;
+				do {
+					pickAddress=findPickAddressWithAddressStatus(addressStatus.get(i), addressLst);
+					i++;
+				} while (pickAddress ==null && (i!=addressStatus.size()-1));
+			}
+		return pickAddress;
+	}
+	/**
+	 * 
+	 * @param addressStatus
+	 * @param addressLst
+	 * @return
+	 */
+	private Address findPickAddressWithAddressStatus(String addressStatus,List<Address> addressLst){
+		List<Address> tempAddressLstCanSort=new ArrayList<Address>();
+		List<Address> tempAddressLstCanNotSort=new ArrayList<Address>();
+		
+			for (Address address : addressLst) {
+				if(address.getAddressStatus().getName().equals(addressStatus) ){
+					if(address.getDateReceived()!=null){
+						tempAddressLstCanSort.add(address);
+					}else{
+						tempAddressLstCanNotSort.add(address);
+					}
+				}
+			}
+		//Sort them to latest
+			Collections.sort(tempAddressLstCanSort, new Comparator<Address>() {
+				@Override
+				public int compare(Address o1, Address o2) {
+					return o2.getDateReceived().compareTo(o1.getDateReceived());
+				}
+			});
+		if(tempAddressLstCanSort.size()>0){
+			return tempAddressLstCanSort.get(0);
+		}
+		else if(tempAddressLstCanNotSort.size()>0){
+			return tempAddressLstCanNotSort.get(0);
+		}else{
+			return null;
+		}	
+		
+	}
+	
+	@Override
+	public void delete(SearchFile searchFile, String directoryType)throws ArkSystemException, EntityNotFoundException, ArkFileNotFoundException {
+		Long studyId = searchFile.getStudy().getId();
+		Long searchId=searchFile.getSearch().getId();
+		String fileId = searchFile.getFileId();
+		String checksum=searchFile.getChecksum();
+				if (arkCommonService.deleteArkFileAttachment(studyId, searchId.toString(), fileId, directoryType, checksum)) {
+					reportDao.delete(searchFile);
+				}
+				else {
+					log.error("Could not find the file - "+fileId);
+				}
+	}
+
+	@Override
+	public void create(SearchFile searchFile) throws ArkSystemException {
+		reportDao.create(searchFile);
+	}
+
+	@Override
+	public void update(SearchFile searchFile) throws ArkSystemException, EntityNotFoundException {
+		reportDao.update(searchFile);
+	}
+	@Override
+	public void create(SearchFile searchFile, String directoryType) throws ArkSystemException {
+		
+		Long studyId = searchFile.getStudy().getId();
+		Long searchId=searchFile.getSearch().getId();
+		String fileName = searchFile.getFilename();
+		byte[] payload = searchFile.getPayload();
+
+		// Generate unique file id for given file name
+		String fileId = arkCommonService.generateArkFileId(fileName);
+
+		// Set unique subject file id
+		searchFile.setFileId(fileId);
+
+		// Save the attachment to directory configured in application.properties {@code fileAttachmentDir}
+		arkCommonService.saveArkFileAttachment(studyId, searchId.toString(), directoryType, fileName, payload, fileId);
+
+		// Remove the attachment
+		searchFile.setPayload(null);
+
+		// Save attachment meta information in relational tables
+		reportDao.create(searchFile);
+
+		AuditHistory ah = new AuditHistory();
+		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_CREATED);
+		ah.setComment("Studyfile " + searchFile.getId()+" was successfully created.");
+		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_SUBJECT_FILE);
+		ah.setEntityId(searchFile.getId());
+		arkCommonService.createAuditHistory(ah);
+	}
+
+	@Override
+	public SearchFile getSearchFileByStudyAndSearch(Study study, Search search) {
+		return reportDao.getSearchFileByStudyAndSearch(study, search);
 	}
 	
 	

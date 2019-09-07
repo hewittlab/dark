@@ -24,17 +24,25 @@ public interface IGenomicsDao {
 
 	public void delete(Computation dataSource);
 	
+	public void delete(Analysis analysis);
+	
 	public List<MicroService> searchMicroService(final MicroService microService);
 	
 	public List<Computation> searchComputations(Computation computation, Long studyId);
 	
 	public List<DataSourceType> listDataSourceTypes();
 	
-	public DataSource getDataSource(DataSourceVo dataSourceVo);	
+	public List<DataSource> getDataSources(DataSourceVo dataSourceVo);	
 	
 	public List<DataSource> searchDataSources(MicroService microService);
 	
 	public List<Computation> searchComputation(MicroService microService);
 	
 	public List<Analysis> searchAnalysis(Analysis analysis, Long studyId);
+	
+	public int getAnalysisCount(long computationId);
+	
+	public int getDataSourceCount(long dataSourceId);
+	
+	public void refreshDataSource(DataSource dataSource);
 }

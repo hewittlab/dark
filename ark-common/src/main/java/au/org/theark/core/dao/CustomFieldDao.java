@@ -24,6 +24,7 @@ import au.org.theark.core.exception.ArkSystemException;
 import au.org.theark.core.exception.EntityNotFoundException;
 import au.org.theark.core.model.lims.entity.BioCollectionCustomFieldData;
 import au.org.theark.core.model.lims.entity.BiospecimenCustomFieldData;
+import au.org.theark.core.model.lims.entity.Unit;
 import au.org.theark.core.model.study.entity.ArkFunction;
 import au.org.theark.core.model.study.entity.ArkModule;
 import au.org.theark.core.model.study.entity.CustomField;
@@ -440,7 +441,7 @@ public class CustomFieldDao extends HibernateSessionDao implements ICustomFieldD
 				}
 	}
 	
-	public static boolean isInEncodedValues(CustomField customField, String value) {
+	public boolean isInEncodedValues(CustomField customField, String value) {
 		if(customField.getMissingValue()!=null && value!=null && value.trim().equalsIgnoreCase(customField.getMissingValue().trim())) {
 			return true;
 		}
@@ -719,7 +720,7 @@ public class CustomFieldDao extends HibernateSessionDao implements ICustomFieldD
 
 	@Override
 	public List<CustomFieldCategory> getCategoriesListInCustomFieldsByCustomFieldType(Study study, ArkFunction arkFunction,CustomFieldType customFieldType){
-		List<CustomFieldCategory> customFieldCategoryList= new ArrayList<CustomFieldCategory>();
+		/*List<CustomFieldCategory> customFieldCategoryList= new ArrayList<CustomFieldCategory>();
 		Criteria criteria = getSession().createCriteria(CustomField.class);
 		criteria.add(Restrictions.eq("customFieldType", customFieldType));
 		criteria.add(Restrictions.eq("arkFunction", arkFunction));
@@ -729,6 +730,21 @@ public class CustomFieldDao extends HibernateSessionDao implements ICustomFieldD
 			if(customField.getCustomFieldCategory()!=null){
 			customFieldCategoryList.add(customField.getCustomFieldCategory());
 			}
+		}
+		return customFieldCategoryList;*/
+		List<CustomFieldCategory> customFieldCategoryList= new ArrayList<CustomFieldCategory>();
+		Criteria criteria = getSession().createCriteria(CustomField.class)
+				.createAlias("customFieldCategory", "customFieldCategory")
+				.add(Restrictions.isNotNull("customFieldCategory"))
+				.add(Restrictions.eq("customFieldType", customFieldType))
+				.add(Restrictions.eq("arkFunction", arkFunction))
+				.add(Restrictions.eq("study", study));
+		List<CustomField> customFieldList = (List<CustomField>) criteria.list();
+		for (CustomField customField : customFieldList) {
+			//remove additional checking.
+		//	if(customField.getCustomFieldCategory()!=null){
+			customFieldCategoryList.add(customField.getCustomFieldCategory());
+		//	}
 		}
 		return customFieldCategoryList;
 	}
@@ -833,6 +849,30 @@ public class CustomFieldDao extends HibernateSessionDao implements ICustomFieldD
 		criteria.add(Restrictions.eq("customFieldType", customFieldType));
 		criteria.setMaxResults(1);
 		return (CustomFieldCategory) criteria.uniqueResult();
+	}
+	
+	@Override
+	public CustomFieldType getCustomFieldTypeById(Long id){
+		Criteria criteria = getSession().createCriteria(CustomFieldType.class);
+		criteria.add(Restrictions.eq("id", id));
+		criteria.setMaxResults(1);
+		return (CustomFieldType) criteria.uniqueResult();
+	}
+
+	@Override
+	public UnitType getUnitTypeById(Long id) {
+		Criteria criteria = getSession().createCriteria(UnitType.class);
+		criteria.add(Restrictions.eq("id", id));
+		criteria.setMaxResults(1);
+		return (UnitType) criteria.uniqueResult();
+	}
+
+	@Override
+	public Unit getUnitById(Long id) {
+		Criteria criteria = getSession().createCriteria(Unit.class);
+		criteria.add(Restrictions.eq("id", id));
+		criteria.setMaxResults(1);
+		return (Unit) criteria.uniqueResult();
 	}
 
 	

@@ -71,7 +71,7 @@ public class SearchResultListPanel extends Panel {
 
 	public PageableListView<RelationshipVo> buildPageableListView(IModel iModel) {
 		
-		sitePageableListView = new PageableListView<RelationshipVo>("relationshipList", iModel, iArkCommonService.getUserConfig(au.org.theark.core.Constants.CONFIG_ROWS_PER_PAGE).getIntValue()) {
+		sitePageableListView = new PageableListView<RelationshipVo>("relationshipList", iModel, iArkCommonService.getRowsPerPage()) {
 
 			private static final long	serialVersionUID	= 1L;
 
@@ -184,10 +184,11 @@ public class SearchResultListPanel extends Panel {
 				ContextHelper contextHelper = new ContextHelper();
 				contextHelper.setStudyContextLabel(target, subjectFromBackend.getLinkSubjectStudy().getStudy().getName(), arkContextMarkup);
 				contextHelper.setSubjectContextLabel(target, subjectFromBackend.getLinkSubjectStudy().getSubjectUID(), arkContextMarkup);
-				
+				contextHelper.setSubjectNameContextLabel(target, subjectFromBackend.getLinkSubjectStudy().getPerson().getFullName(), arkContextMarkup);
+
 				// Set Study Logo
 				StudyHelper studyHelper = new StudyHelper();
-				studyHelper.setStudyLogo(subjectFromBackend.getLinkSubjectStudy().getStudy(), target, studyNameMarkup, studyLogoMarkup);
+				studyHelper.setStudyLogo(subjectFromBackend.getLinkSubjectStudy().getStudy(), target, studyNameMarkup, studyLogoMarkup, iArkCommonService);
 				
 				//Refresh relationship list
 				arkCrudContainerVO.getSearchPanelContainer().get("searchComponentPanel").get("searchForm").get("father").setEnabled(true);

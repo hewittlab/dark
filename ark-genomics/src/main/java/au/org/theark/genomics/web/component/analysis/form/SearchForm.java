@@ -49,7 +49,7 @@ public class SearchForm extends AbstractSearchForm<AnalysisVo> {
 		initialiseSearchForm();
 		addSearchComponentsToForm();
 		Long sessionStudyId = (Long) SecurityUtils.getSubject().getSession().getAttribute(au.org.theark.core.Constants.STUDY_CONTEXT_ID);
-		disableSearchForm(sessionStudyId, "There is no study in context. Please select a Study.");
+		disableSearchForm(sessionStudyId, "There is no study selected. Please select a study.");
 	}
 	
 	protected void initialiseSearchForm() {
@@ -83,8 +83,11 @@ public class SearchForm extends AbstractSearchForm<AnalysisVo> {
 		getModelObject().getAnalysis().setId(null);
 		getModelObject().getAnalysis().setStatus(Constants.STATUS_UNDEFINED);
 		
+		DropDownChoice<Computation> microserviceDDC= (DropDownChoice)arkCrudContainerVO.getDetailPanelFormContainer().get(Constants.ANALYIS_MICRO_SERVICE);
 		DropDownChoice<DataSource> dataSourceDDC= (DropDownChoice)arkCrudContainerVO.getDetailPanelFormContainer().get(Constants.ANALYIS_DATA_SOURCE);
 		DropDownChoice<Computation> computationDDC= (DropDownChoice)arkCrudContainerVO.getDetailPanelFormContainer().get(Constants.ANALYIS_COMPUTAION);
+		TextField resultsTxtFld = (TextField)arkCrudContainerVO.getDetailPanelFormContainer().get(Constants.ANALYIS_RESULT);
+		
 		if(dataSourceDDC !=null){
 			dataSourceDDC.setChoices(new ArrayList<DataSource>());
 		}
@@ -92,6 +95,11 @@ public class SearchForm extends AbstractSearchForm<AnalysisVo> {
 		if(computationDDC !=null){
 			computationDDC.setChoices(new ArrayList<Computation>());
 		}
+		
+		microserviceDDC.setEnabled(true);
+		dataSourceDDC.setEnabled(true);
+		computationDDC.setEnabled(true);
+		resultsTxtFld.setEnabled(true);
 		
 		preProcessDetailPanel(target);
 	}

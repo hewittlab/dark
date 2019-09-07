@@ -23,8 +23,10 @@ import java.util.Collection;
 import java.util.List;
 
 import org.apache.shiro.SecurityUtils;
+import org.apache.wicket.Session;
 import org.apache.wicket.ajax.AjaxRequestTarget;
-import org.apache.wicket.extensions.markup.html.form.DateTextField;
+import org.apache.wicket.datetime.PatternDateConverter;
+import org.apache.wicket.datetime.markup.html.form.DateTextField;
 import org.apache.wicket.markup.html.basic.Label;
 import org.apache.wicket.markup.html.form.ChoiceRenderer;
 import org.apache.wicket.markup.html.form.DropDownChoice;
@@ -77,9 +79,11 @@ public class SearchForm extends AbstractSearchForm<CorrespondenceVO> {
 	private DropDownChoice<CorrespondenceDirectionType>	directionTypeChoice;
 	private DropDownChoice<CorrespondenceOutcomeType>		outcomeTypeChoice;
 	private TextArea<String>										detailsTxtArea;
+	private FeedbackPanel 									feedbackPanel;
 
 	public SearchForm(String id, CompoundPropertyModel<CorrespondenceVO> model, PageableListView<Correspondences> listView, FeedbackPanel feedBackPanel, ArkCrudContainerVO arkCrudContainerVO) {
 		super(id, model, feedBackPanel, arkCrudContainerVO);
+		this.feedbackPanel=feedBackPanel;
 		this.pageableListView = listView;
 		Label generalTextLbl = new Label("generalLbl", new StringResourceModel("search.panel.text", new Model()));
 		add(generalTextLbl);
@@ -93,7 +97,7 @@ public class SearchForm extends AbstractSearchForm<CorrespondenceVO> {
 	@SuppressWarnings("unused")
 	private void initialiseSearchForm() {
 		initialiseOperatorDropDown();
-		dateFld = new DateTextField("correspondence.date", au.org.theark.core.Constants.DD_MM_YYYY);
+		dateFld = new DateTextField("correspondence.date", new PatternDateConverter(au.org.theark.core.Constants.DD_MM_YYYY,false));
 		ArkDatePicker datePicker = new ArkDatePicker();
 		datePicker.bind(dateFld);
 		dateFld.add(datePicker);
@@ -154,7 +158,8 @@ public class SearchForm extends AbstractSearchForm<CorrespondenceVO> {
 
 	@Override
 	protected void onNew(AjaxRequestTarget target) {
-
+		Session.get().cleanupFeedbackMessages();
+		target.add(feedbackPanel);
 		setModelObject(new CorrespondenceVO());
 		preProcessDetailPanel(target);
 		arkCrudContainerVO.getDetailPanelFormContainer().get("worktrackingcontainer").setVisible(true);

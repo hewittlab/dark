@@ -18,24 +18,20 @@
  ******************************************************************************/
 package au.org.theark.study.service;
 
-import au.org.theark.core.dao.IAuditDao;
-import au.org.theark.core.dao.ICustomFieldDao;
-import au.org.theark.core.exception.*;
-import au.org.theark.core.model.audit.entity.ConsentHistory;
-import au.org.theark.core.model.audit.entity.LssConsentHistory;
-import au.org.theark.core.model.lims.entity.BioCollectionUidTemplate;
-import au.org.theark.core.model.lims.entity.BiospecimenUidTemplate;
-import au.org.theark.core.model.study.entity.*;
-import au.org.theark.core.service.IArkCommonService;
-import au.org.theark.core.vo.*;
-import au.org.theark.study.model.capsule.ArkRelativeCapsule;
-import au.org.theark.study.model.capsule.RelativeCapsule;
-import au.org.theark.study.model.dao.IStudyDao;
-import au.org.theark.study.model.vo.RelationshipVo;
-import au.org.theark.study.model.vo.StudyCalendarVo;
-import au.org.theark.study.util.*;
-import au.org.theark.study.web.Constants;
-import au.org.theark.study.web.component.subjectUpload.UploadUtilities;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
+import java.util.Set;
+
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.subject.Subject;
 import org.apache.wicket.util.file.File;
@@ -50,11 +46,84 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.text.SimpleDateFormat;
-import java.util.*;
+import au.org.theark.core.dao.IAuditDao;
+import au.org.theark.core.dao.ICustomFieldDao;
+import au.org.theark.core.exception.ArkBaseException;
+import au.org.theark.core.exception.ArkFileNotFoundException;
+import au.org.theark.core.exception.ArkSubjectInsertException;
+import au.org.theark.core.exception.ArkSystemException;
+import au.org.theark.core.exception.ArkUniqueException;
+import au.org.theark.core.exception.CannotRemoveArkModuleException;
+import au.org.theark.core.exception.EntityCannotBeRemoved;
+import au.org.theark.core.exception.EntityExistsException;
+import au.org.theark.core.exception.EntityNotFoundException;
+import au.org.theark.core.exception.FileFormatException;
+import au.org.theark.core.exception.StatusNotAvailableException;
+import au.org.theark.core.exception.UnAuthorizedOperation;
+import au.org.theark.core.model.audit.entity.ConsentHistory;
+import au.org.theark.core.model.audit.entity.LssConsentHistory;
+import au.org.theark.core.model.lims.entity.BioCollectionUidTemplate;
+import au.org.theark.core.model.lims.entity.BiospecimenUidTemplate;
+import au.org.theark.core.model.study.entity.Address;
+import au.org.theark.core.model.study.entity.AddressStatus;
+import au.org.theark.core.model.study.entity.AddressType;
+import au.org.theark.core.model.study.entity.ArkFunction;
+import au.org.theark.core.model.study.entity.ArkUser;
+import au.org.theark.core.model.study.entity.AuditHistory;
+import au.org.theark.core.model.study.entity.Consent;
+import au.org.theark.core.model.study.entity.ConsentFile;
+import au.org.theark.core.model.study.entity.ConsentOption;
+import au.org.theark.core.model.study.entity.ConsentStatus;
+import au.org.theark.core.model.study.entity.ConsentType;
+import au.org.theark.core.model.study.entity.CorrespondenceDirectionType;
+import au.org.theark.core.model.study.entity.CorrespondenceModeType;
+import au.org.theark.core.model.study.entity.CorrespondenceOutcomeType;
+import au.org.theark.core.model.study.entity.Correspondences;
+import au.org.theark.core.model.study.entity.CustomField;
+import au.org.theark.core.model.study.entity.CustomFieldCategory;
+import au.org.theark.core.model.study.entity.CustomFieldType;
+import au.org.theark.core.model.study.entity.EmailAccount;
+import au.org.theark.core.model.study.entity.EmailAccountType;
+import au.org.theark.core.model.study.entity.EmailStatus;
+import au.org.theark.core.model.study.entity.FamilyCustomFieldData;
+import au.org.theark.core.model.study.entity.GenderType;
+import au.org.theark.core.model.study.entity.ICustomFieldData;
+import au.org.theark.core.model.study.entity.LinkStudySubstudy;
+import au.org.theark.core.model.study.entity.LinkSubjectPedigree;
+import au.org.theark.core.model.study.entity.LinkSubjectStudy;
+import au.org.theark.core.model.study.entity.LinkSubjectTwin;
+import au.org.theark.core.model.study.entity.MaritalStatus;
+import au.org.theark.core.model.study.entity.OtherID;
+import au.org.theark.core.model.study.entity.Person;
+import au.org.theark.core.model.study.entity.PersonLastnameHistory;
+import au.org.theark.core.model.study.entity.Phone;
+import au.org.theark.core.model.study.entity.PhoneStatus;
+import au.org.theark.core.model.study.entity.PhoneType;
+import au.org.theark.core.model.study.entity.Study;
+import au.org.theark.core.model.study.entity.StudyCalendar;
+import au.org.theark.core.model.study.entity.StudyComp;
+import au.org.theark.core.model.study.entity.StudyPedigreeConfiguration;
+import au.org.theark.core.model.study.entity.StudyStatus;
+import au.org.theark.core.model.study.entity.SubjectCustomFieldData;
+import au.org.theark.core.model.study.entity.SubjectFile;
+import au.org.theark.core.model.study.entity.SubjectStatus;
+import au.org.theark.core.model.study.entity.TitleType;
+import au.org.theark.core.model.study.entity.TwinType;
+import au.org.theark.core.model.study.entity.Upload;
+import au.org.theark.core.model.study.entity.VitalStatus;
+import au.org.theark.core.service.IArkCommonService;
+import au.org.theark.core.vo.ArkUserVO;
+import au.org.theark.core.vo.ConsentVO;
+import au.org.theark.core.vo.StudyModelVO;
+import au.org.theark.core.vo.SubjectVO;
+import au.org.theark.core.vo.UploadVO;
+import au.org.theark.study.model.capsule.ArkRelativeCapsule;
+import au.org.theark.study.model.capsule.RelativeCapsule;
+import au.org.theark.study.model.dao.IStudyDao;
+import au.org.theark.study.model.vo.RelationshipVo;
+import au.org.theark.study.model.vo.StudyCalendarVo;
+import au.org.theark.study.util.*;
+import au.org.theark.study.web.Constants;
 
 
 
@@ -132,9 +201,14 @@ public class StudyServiceImpl implements IStudyService {
 		this.iCustomFieldDao = iCustomFieldDao;
 	}
 
-	public void createStudy(StudyModelVO studyModelVo) {
+	public void createStudy(StudyModelVO studyModelVo) throws Exception{
 		// Create the study group in the LDAP for the selected applications and also add the roles to each of the application.
 		iStudyDao.create(studyModelVo.getStudy(), studyModelVo.getSelectedArkModules(), studyModelVo.getStudy().getParentStudy());
+		
+		Study  study = studyModelVo.getStudy();
+		
+		createStudyLogoAttachment(study);
+		
 		BiospecimenUidTemplate template = studyModelVo.getBiospecimenUidTemplate();
 		if (template != null && template.getBiospecimenUidPadChar() != null && template.getBiospecimenUidPrefix() != null && template.getBiospecimenUidToken() != null) {
 			template.setStudy(studyModelVo.getStudy());
@@ -161,15 +235,20 @@ public class StudyServiceImpl implements IStudyService {
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_CREATED);
-		ah.setComment("Created Study " + studyModelVo.getStudy().getName());
+		ah.setComment("Study " + studyModelVo.getStudy().getName()+" was successfully created.");
 		ah.setEntityId(studyModelVo.getStudy().getId());
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_STUDY);
 		iArkCommonService.createAuditHistory(ah);
 	}
 
-	public void createStudy(StudyModelVO studyModelVo, ArkUserVO arkUserVo) {
+	public void createStudy(StudyModelVO studyModelVo, ArkUserVO arkUserVo) throws Exception{
 		// Create the study group in the LDAP for the selected applications and also add the roles to each of the application.
 		iStudyDao.create(studyModelVo.getStudy(), arkUserVo, studyModelVo.getSelectedArkModules());
+		
+		Study  study = studyModelVo.getStudy();
+		
+		createStudyLogoAttachment(study);
+		
 		BiospecimenUidTemplate template = studyModelVo.getBiospecimenUidTemplate();
 		if (template != null && template.getBiospecimenUidPadChar() != null && template.getBiospecimenUidPrefix() != null && template.getBiospecimenUidToken() != null) {
 			template.setStudy(studyModelVo.getStudy());
@@ -196,14 +275,82 @@ public class StudyServiceImpl implements IStudyService {
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_CREATED);
-		ah.setComment("Created Study " + studyModelVo.getStudy().getName());
+		ah.setComment("Study " + studyModelVo.getStudy().getName()+" was successfully created.");
 		ah.setEntityId(studyModelVo.getStudy().getId());
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_STUDY);
 		iArkCommonService.createAuditHistory(ah);
+	}
+	
+	
+	private void createStudyLogoAttachment(Study study) throws Exception{
+		
+		if (study.getStudyLogoBlob() != null) {
+			Long studyId = study.getId();
+			String fileName = study.getFilename();
+//			int blobLength = (int) study.getStudyLogoBlob().length();  
+//			byte[] payload = study.getStudyLogoBlob().getBytes(1, blobLength);
+			byte[] payload = study.getStudyLogoBlob();
+
+			// Generate unique file id for given file name
+			String fileId = iArkCommonService.generateArkFileId(fileName);
+
+			// Set unique subject file id
+			study.setStudyLogoFileId(fileId);
+
+			// Save the attachment to directory configured in application.properties {@code fileAttachmentDir}
+			iArkCommonService.saveArkFileAttachment(studyId, null, Constants.ARK_STUDY_DIR, fileName, payload, fileId);
+
+			// Remove the attachment
+			//study.setStudyLogoBlob(null);
+			
+			iStudyDao.updateStudy(study);
+		}
 	}
 
 	public void updateStudy(StudyModelVO studyModelVo) throws CannotRemoveArkModuleException {
 
+		iStudyDao.updateStudy(studyModelVo.getStudy(), studyModelVo.getSelectedArkModules());
+
+		if (!iArkCommonService.studyHasBiospecimen(studyModelVo.getStudy())) {
+			// Defensive check to make sure no biospecimens are attached to the study
+			BiospecimenUidTemplate template = studyModelVo.getBiospecimenUidTemplate();
+			if (template != null && template.getBiospecimenUidPadChar() != null && template.getBiospecimenUidPrefix() != null && template.getBiospecimenUidToken() != null) {
+				template.setStudy(studyModelVo.getStudy());
+				iArkCommonService.updateBiospecimenUidTemplate(template);
+			}
+		}
+
+		if (!iArkCommonService.studyHasBioCollection(studyModelVo.getStudy())) {
+			BioCollectionUidTemplate bioCollectionUidTemplate = studyModelVo.getBioCollectionUidTemplate();
+			if (bioCollectionUidTemplate != null && bioCollectionUidTemplate.getBioCollectionUidPadChar() != null && bioCollectionUidTemplate.getBioCollectionUidToken() != null) {
+				bioCollectionUidTemplate.setStudy(studyModelVo.getStudy());
+				iArkCommonService.updateBioCollectionUidTemplate(bioCollectionUidTemplate);
+			}
+		}
+
+		Collection<SubjectVO> selectedSubjects = studyModelVo.getSelectedSubjects();
+		for (SubjectVO subjectVO : selectedSubjects) {
+			LinkSubjectStudy lss = new LinkSubjectStudy();
+			lss.setStudy(studyModelVo.getStudy());// Current Study
+			lss.setPerson(subjectVO.getLinkSubjectStudy().getPerson());
+			lss.setSubjectUID(subjectVO.getLinkSubjectStudy().getSubjectUID());
+			lss.setSubjectStatus(subjectVO.getLinkSubjectStudy().getSubjectStatus());
+			cloneSubjectForSubStudy(lss);
+		}
+
+		AuditHistory ah = new AuditHistory();
+		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_UPDATED);
+		ah.setComment("Study " + studyModelVo.getStudy().getName()+" was successfully updated.");
+		ah.setEntityId(studyModelVo.getStudy().getId());
+		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_STUDY);
+		iArkCommonService.createAuditHistory(ah);
+
+	}
+		
+	public void updateStudy(StudyModelVO studyModelVo, String checksum) throws CannotRemoveArkModuleException, Exception {
+
+		updateStudyLogoAttachment(studyModelVo.getStudy(), checksum);
+		
 		iStudyDao.updateStudy(studyModelVo.getStudy(), studyModelVo.getSelectedArkModules());
 
 		if (!iArkCommonService.studyHasBiospecimen(studyModelVo.getStudy())) {
@@ -241,6 +388,68 @@ public class StudyServiceImpl implements IStudyService {
 		iArkCommonService.createAuditHistory(ah);
 
 	}
+	
+	private void updateStudyLogoAttachment(Study study, String checksum) throws Exception{
+		Long studyId = study.getId();
+		String fileName = study.getFilename();
+//		int blobLength = (int) study.getStudyLogoBlob().length();  
+//		byte[] payload = study.getStudyLogoBlob().getBytes(1, blobLength);
+		byte[] payload = study.getStudyLogoBlob();
+		String prevChecksum = study.getStudyLogoChecksum();
+
+		String fileId = null;
+		if (study.getStudyLogoBlob() != null) {
+
+			if (study.getStudyLogoFileId() != null) {
+
+				// Get existing file Id
+				fileId = study.getStudyLogoFileId();
+
+				// Delete existing attachment
+				iArkCommonService.deleteArkFileAttachment(studyId, null, fileId, Constants.ARK_STUDY_DIR,prevChecksum);
+
+				// Generate unique file id for given file name
+				fileId = iArkCommonService.generateArkFileId(fileName);
+
+				// Set unique subject file id
+				study.setStudyLogoFileId(fileId);
+
+				// Save the attachment to directory configured in application.properties {@code fileAttachmentDir}
+				iArkCommonService.saveArkFileAttachment(studyId, null, Constants.ARK_STUDY_DIR, fileName, payload, fileId);
+			}
+			else {
+				// Generate unique file id for given file name
+				fileId = iArkCommonService.generateArkFileId(fileName);
+
+				// Set unique subject file id
+				study.setStudyLogoFileId(fileId);
+
+				// Save the attachment to directory configured in application.properties {@code fileAttachmentDir}
+				iArkCommonService.saveArkFileAttachment(studyId, null, Constants.ARK_STUDY_DIR, fileName, payload, fileId);
+			}
+			//Set new file checksum
+			study.setStudyLogoChecksum(checksum);
+		}
+		else {
+			if (study.getStudyLogoFileId() != null) {
+				// Get existing file Id
+				fileId = study.getStudyLogoFileId();
+
+				// Delete existing attachment
+				iArkCommonService.deleteArkFileAttachment(studyId, null, fileId, Constants.ARK_STUDY_DIR,prevChecksum);
+				
+				//remove existing attachment file id and checksum
+				study.setStudyLogoFileId(null);
+				study.setStudyLogoChecksum(null);
+				study.setFilename(null);
+			}
+		}
+		// Remove the attachment
+         study.setStudyLogoBlob(null);
+		
+	}
+
+
 
 	/**
 	 * This will mark the study as archived.
@@ -253,7 +462,7 @@ public class StudyServiceImpl implements IStudyService {
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_UPDATED);
-		ah.setComment("Archived Study " + studyEntity.getName());
+		ah.setComment("Study " + studyEntity.getName()+" was successfully archived.");
 		ah.setEntityId(studyEntity.getId());
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_STUDY);
 		iArkCommonService.createAuditHistory(ah);
@@ -270,19 +479,19 @@ public class StudyServiceImpl implements IStudyService {
 			AuditHistory ah = new AuditHistory();
 			ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_CREATED);
 
-			ah.setComment("Created Study Component " + studyComponent.getName());
+			ah.setComment("Study Component " + studyComponent.getName()+" was successfully created.");
 			ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_STUDY_COMPONENT);
 			ah.setStudyStatus(studyComponent.getStudy().getStudyStatus());
 			ah.setEntityId(studyComponent.getId());
 			iArkCommonService.createAuditHistory(ah);
 		}
 		catch (ConstraintViolationException cvex) {
-			log.error("Study Component already exists.: " + cvex);
-			throw new EntityExistsException("A Study Component already exits.");
+			log.error("Study Component already exists: " + cvex);
+			throw new EntityExistsException("A Study Component already exists.");
 		}
 		catch (Exception ex) {
-			log.error("Problem creating Study Component: " + ex);
-			throw new ArkSystemException("Problem creating Study Component: " + ex.getMessage());
+			log.error("A problem occured when creating Study Component: " + ex);
+			throw new ArkSystemException("A problem occured when creating Study Component: " + ex.getMessage());
 		}
 	}
 
@@ -293,19 +502,19 @@ public class StudyServiceImpl implements IStudyService {
 			AuditHistory ah = new AuditHistory();
 			ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_UPDATED);
 
-			ah.setComment("Updated Study Component " + studyComponent.getName());
+			ah.setComment("Study Component " + studyComponent.getName()+" was successfully updated.");
 			ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_STUDY_COMPONENT);
 			ah.setStudyStatus(studyComponent.getStudy().getStudyStatus());
 			ah.setEntityId(studyComponent.getId());
 			iArkCommonService.createAuditHistory(ah);
 		}
 		catch (ConstraintViolationException cvex) {
-			log.error("Study Component already exists.: " + cvex);
+			log.error("Study Component already exists: " + cvex);
 			throw new EntityExistsException("A Study Component already exists.");
 		}
 		catch (Exception ex) {
-			log.error("Problem updating Study Component: " + ex);
-			throw new ArkSystemException("Problem updating Study Component: " + ex.getMessage());
+			log.error("A problem occured when updating Study Component: " + ex);
+			throw new ArkSystemException("A problem occured when updating Study Component: " + ex.getMessage());
 		}
 	}
 
@@ -316,18 +525,18 @@ public class StudyServiceImpl implements IStudyService {
 			iStudyDao.create(phone);
 		}
 		catch (ConstraintViolationException cvex) {
-			log.error("Problem creating phone record: " + cvex);
+			log.error("A problem occured when creating phone record: " + cvex);
 			// the following ArkUniqueException message will be shown to the user
-			throw new ArkUniqueException("Failed saving: New phone number is not unique for this person");
+			throw new ArkUniqueException("Saving phone number failed: The new phone number is not unique for this person.");
 		}
 		catch (Exception ex) {
-			log.error("Problem creating phone record: " + ex);
-			throw new ArkSystemException("Problem creating phone record: " + ex.getMessage());
+			log.error("A problem occured when creating the phone record: " + ex);
+			throw new ArkSystemException("A problem occured when creating the phone record: " + ex.getMessage());
 		}
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_CREATED);
-		ah.setComment("Created Phone " + phone.getPhoneNumber());
+		ah.setComment("Phone " + phone.getPhoneNumber()+" was successfully created.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_PHONE);
 		ah.setEntityId(phone.getId());
 		iArkCommonService.createAuditHistory(ah);
@@ -339,19 +548,19 @@ public class StudyServiceImpl implements IStudyService {
 			iStudyDao.update(phone);
 		}
 		catch (ConstraintViolationException cvex) {
-			log.error("Problem updating phone record: " + cvex);
+			log.error("A problem occured when updating the phone record: " + cvex);
 			// the following ArkUniqueException message will be shown to the user
-			throw new ArkUniqueException("Failed saving: Phone number already exists for this person");
+			throw new ArkUniqueException("A problem occured when saving: Phone number already exists for this person");
 		}
 		catch (Exception ex) {
 			log.error("Problem updating phone record: " + ex);
-			throw new ArkSystemException("Problem updating phone record: " + ex.getMessage());
+			throw new ArkSystemException("A problem occured when updating the phone record: " + ex.getMessage());
 		}
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_UPDATED);
 
-		ah.setComment("Updated Phone " + phone.getPhoneNumber());
+		ah.setComment("Phone " + phone.getPhoneNumber()+" was successfully updated.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_PHONE);
 		ah.setEntityId(phone.getId());
 		iArkCommonService.createAuditHistory(ah);
@@ -369,7 +578,7 @@ public class StudyServiceImpl implements IStudyService {
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_DELETED);
-		ah.setComment("Deleted Phone " + phone.getId());
+		ah.setComment("Phone " + phone.getId()+" was successfully deleted.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_PHONE);
 		ah.setEntityId(phone.getId());
 		iArkCommonService.createAuditHistory(ah);
@@ -388,7 +597,7 @@ public class StudyServiceImpl implements IStudyService {
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_CREATED);
-		ah.setComment("Created Subject " + subjectVO.getLinkSubjectStudy().getSubjectUID());
+		ah.setComment("Subject " + subjectVO.getLinkSubjectStudy().getSubjectUID()+" was successfully created.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_SUBJECT);
 		ah.setEntityId(subjectVO.getLinkSubjectStudy().getId());
 		iArkCommonService.createAuditHistory(ah);
@@ -408,7 +617,7 @@ public class StudyServiceImpl implements IStudyService {
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_UPDATED);
-		ah.setComment("Updated Subject " + subjectVO.getLinkSubjectStudy().getSubjectUID());
+		ah.setComment("Subject " + subjectVO.getLinkSubjectStudy().getSubjectUID()+" was successfully updated.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_SUBJECT);
 		ah.setEntityId(subjectVO.getLinkSubjectStudy().getId());
 		iArkCommonService.createAuditHistory(ah);
@@ -525,13 +734,20 @@ public class StudyServiceImpl implements IStudyService {
 	public List<Address> getPersonAddressList(Long personId, Address address) throws ArkSystemException {
 		return iStudyDao.getPersonAddressList(personId, address);
 	}
+	
+	/**
+	 * {@inheritDoc}
+	 */
+	public List<EmailAccount> getPersonEmailAccountList(Long personId) throws ArkSystemException{
+		return iStudyDao.getPersonEmailAccountList(personId);
+	}
 
 	public void create(Address address) throws ArkSystemException {
 		iStudyDao.create(address);
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_CREATED);
-		ah.setComment("Created Address " + address.getId());
+		ah.setComment("Address " + address.getId()+" was successfully created.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_ADDRESS);
 		ah.setEntityId(address.getId());
 		iArkCommonService.createAuditHistory(ah);
@@ -542,7 +758,7 @@ public class StudyServiceImpl implements IStudyService {
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_UPDATED);
-		ah.setComment("Updated Address " + address.getId());
+		ah.setComment("Address " + address.getId()+" was successfully updated.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_ADDRESS);
 		ah.setEntityId(address.getId());
 		iArkCommonService.createAuditHistory(ah);
@@ -554,19 +770,54 @@ public class StudyServiceImpl implements IStudyService {
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_DELETED);
-		ah.setComment("Deleted Address " + address.getStreetAddress());
+		ah.setComment("Address " + address.getStreetAddress()+" was successfully deleted.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_ADDRESS);
 		ah.setEntityId(address.getId());
 		iArkCommonService.createAuditHistory(ah);
 	}
 
+	
+	public void create(EmailAccount emailAccount) throws ArkSystemException {
+		iStudyDao.create(emailAccount);
+		
+		AuditHistory ah = new AuditHistory();
+		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_CREATED);
+		ah.setComment("Email " + emailAccount.getId()+" was successfully created.");
+		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_ADDRESS);
+		ah.setEntityId(emailAccount.getId());
+		iArkCommonService.createAuditHistory(ah);
+	}
+	
+	public void update(EmailAccount emailAccount) throws ArkSystemException {
+		iStudyDao.update(emailAccount);
+		
+		AuditHistory ah = new AuditHistory();
+		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_UPDATED);
+		ah.setComment("Email " + emailAccount.getId()+" was successfully updated.");
+		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_ADDRESS);
+		ah.setEntityId(emailAccount.getId());
+		iArkCommonService.createAuditHistory(ah);
+	}
+	
+	public void delete(EmailAccount emailAccount) throws ArkSystemException {
+		// Add business rules to check if this address is in use/active and referred elsewhere
+		iStudyDao.delete(emailAccount);
+		
+		AuditHistory ah = new AuditHistory();
+		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_DELETED);
+		ah.setComment("Email " + emailAccount.getName()+" was successfully deleted.");
+		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_ADDRESS);
+		ah.setEntityId(emailAccount.getId());
+		iArkCommonService.createAuditHistory(ah);
+	}
+	
 	public void create(Consent consent) throws ArkSystemException {
 		iStudyDao.create(consent);
 		createConsentHistory(consent);
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_CREATED);
-		ah.setComment("Created Consent " + consent.getId());
+		ah.setComment("Consent " + consent.getId()+" was successfully created.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_CONSENT);
 		ah.setEntityId(consent.getId());
 		iArkCommonService.createAuditHistory(ah);
@@ -584,6 +835,13 @@ public class StudyServiceImpl implements IStudyService {
 	public void update(Consent consent) throws ArkSystemException, EntityNotFoundException {
 		iStudyDao.update(consent);
 		createConsentHistory(consent);
+
+		AuditHistory ah = new AuditHistory();
+		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_UPDATED);
+		ah.setComment("Consent " + consent.getId()+" was successfully updated.");
+		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_CONSENT);
+		ah.setEntityId(consent.getId());
+		iArkCommonService.createAuditHistory(ah);
 	}
 
 	public void update(Consent consent, boolean consentFile) throws ArkSystemException, EntityNotFoundException {
@@ -594,6 +852,13 @@ public class StudyServiceImpl implements IStudyService {
 			createConsentHistory(consent);
 		}
 		iStudyDao.update(consent);
+
+		AuditHistory ah = new AuditHistory();
+		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_UPDATED);
+		ah.setComment("Consent " + consent.getId()+" was successfully updated.");
+		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_CONSENT);
+		ah.setEntityId(consent.getId());
+		iArkCommonService.createAuditHistory(ah);
 	}
 
 	private void createConsentHistory(Consent newConsent) {
@@ -624,6 +889,13 @@ public class StudyServiceImpl implements IStudyService {
 	 */
 	public void delete(Consent consent) throws ArkSystemException, EntityNotFoundException {
 		iStudyDao.delete(consent);
+
+		AuditHistory ah = new AuditHistory();
+		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_DELETED);
+		ah.setComment("Consent " + consent.getId()+" was successfully deleted.");
+		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_CONSENT);
+		ah.setEntityId(consent.getId());
+		iArkCommonService.createAuditHistory(ah);
 	}
 
 	public Consent getConsent(Long id) throws ArkSystemException {
@@ -662,7 +934,7 @@ public class StudyServiceImpl implements IStudyService {
 		iStudyDao.update(correspondence);
 	}
 	
-	public void update(Correspondences correspondence, String checksum) throws ArkSystemException, EntityNotFoundException {
+	public void update(Correspondences correspondence, String checksum) throws ArkSystemException, EntityNotFoundException, ArkFileNotFoundException {
 		Long studyId = correspondence.getLss().getStudy().getId();
 		String subjectUID = correspondence.getLss().getSubjectUID();
 		String fileName = correspondence.getAttachmentFilename();
@@ -765,7 +1037,7 @@ public class StudyServiceImpl implements IStudyService {
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_CREATED);
-		ah.setComment("Created ConsentFile " + consentFile.getId());
+		ah.setComment("ConsentFile " + consentFile.getId()+" was successfully created.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_CONSENT_FILE);
 		ah.setEntityId(consentFile.getId());
 		iArkCommonService.createAuditHistory(ah);
@@ -776,7 +1048,7 @@ public class StudyServiceImpl implements IStudyService {
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_UPDATED);
-		ah.setComment("Updated ConsentFile " + consentFile.getId());
+		ah.setComment("ConsentFile " + consentFile.getId()+" was successfully updated.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_CONSENT_FILE);
 		ah.setEntityId(consentFile.getId());
 		iArkCommonService.createAuditHistory(ah);
@@ -787,7 +1059,7 @@ public class StudyServiceImpl implements IStudyService {
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_DELETED);
-		ah.setComment("Deleted ConsentFile " + consentFile.getId());
+		ah.setComment("ConsentFile " + consentFile.getId()+" was successfully deleted.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_CONSENT_FILE);
 		ah.setEntityId(consentFile.getId());
 		iArkCommonService.createAuditHistory(ah);
@@ -832,7 +1104,7 @@ public class StudyServiceImpl implements IStudyService {
 		return iStudyDao.personHasPreferredMailingAddress(person, currentAddressId);
 	}
 
-	public void create(SubjectFile subjectFile) throws ArkSystemException {
+	public void create(SubjectFile subjectFile, String directoryType) throws ArkSystemException {
 
 		Long studyId = subjectFile.getLinkSubjectStudy().getStudy().getId();
 		String subjectUID = subjectFile.getLinkSubjectStudy().getSubjectUID();
@@ -846,7 +1118,7 @@ public class StudyServiceImpl implements IStudyService {
 		subjectFile.setFileId(fileId);
 
 		// Save the attachment to directory configured in application.properties {@code fileAttachmentDir}
-		iArkCommonService.saveArkFileAttachment(studyId, subjectUID, Constants.ARK_SUBJECT_ATTACHEMENT_DIR, fileName, payload, fileId);
+		iArkCommonService.saveArkFileAttachment(studyId, subjectUID, directoryType, fileName, payload, fileId);
 
 		// Remove the attachment
 		subjectFile.setPayload(null);
@@ -856,7 +1128,7 @@ public class StudyServiceImpl implements IStudyService {
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_CREATED);
-		ah.setComment("Created subjectFile " + subjectFile.getId());
+		ah.setComment("SubjectFile " + subjectFile.getId()+" was successfully created.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_SUBJECT_FILE);
 		ah.setEntityId(subjectFile.getId());
 		iArkCommonService.createAuditHistory(ah);
@@ -866,13 +1138,13 @@ public class StudyServiceImpl implements IStudyService {
 		iStudyDao.update(subjectFile);
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_UPDATED);
-		ah.setComment("Updated subjectFile " + subjectFile.getId());
+		ah.setComment("SubjectFile " + subjectFile.getId()+" was successfully updated.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_SUBJECT_FILE);
 		ah.setEntityId(subjectFile.getId());
 		iArkCommonService.createAuditHistory(ah);
 	}
 
-	public void update(SubjectFile subjectFile, String checksum) throws ArkSystemException, EntityNotFoundException {
+	public void update(SubjectFile subjectFile, String checksum) throws ArkSystemException, EntityNotFoundException, ArkFileNotFoundException {
 		Long studyId = subjectFile.getLinkSubjectStudy().getStudy().getId();
 		String subjectUID = subjectFile.getLinkSubjectStudy().getSubjectUID();
 		String fileName = subjectFile.getFilename();
@@ -902,25 +1174,22 @@ public class StudyServiceImpl implements IStudyService {
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_UPDATED);
-		ah.setComment("Updated subjectFile " + subjectFile.getId());
+		ah.setComment("SubjectFile " + subjectFile.getId()+" was successfully updated.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_SUBJECT_FILE);
 		ah.setEntityId(subjectFile.getId());
 		iArkCommonService.createAuditHistory(ah);
 	}
 
-	public void delete(SubjectFile subjectFile) throws ArkSystemException, EntityNotFoundException {
-
+	public void delete(SubjectFile subjectFile,String directoryType) throws ArkSystemException, EntityNotFoundException, ArkFileNotFoundException {
 		Long studyId = subjectFile.getLinkSubjectStudy().getStudy().getId();
 		String subjectUID = subjectFile.getLinkSubjectStudy().getSubjectUID();
 		String fileId = subjectFile.getFileId();
 		String checksum=subjectFile.getChecksum();
-		
-		try {
-				if (iArkCommonService.deleteArkFileAttachment(studyId, subjectUID, fileId, Constants.ARK_SUBJECT_ATTACHEMENT_DIR, checksum)) {
+				if (iArkCommonService.deleteArkFileAttachment(studyId, subjectUID, fileId, directoryType, checksum)) {
 					iStudyDao.delete(subjectFile);
 					AuditHistory ah = new AuditHistory();
 					ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_DELETED);
-					ah.setComment("Deleted subjectFile " + subjectFile.getId());
+					ah.setComment("SubjectFile " + subjectFile.getId()+" was successfully deleted.");
 					ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_SUBJECT_FILE);
 					ah.setEntityId(subjectFile.getId());
 					iArkCommonService.createAuditHistory(ah);
@@ -928,10 +1197,6 @@ public class StudyServiceImpl implements IStudyService {
 				else {
 					log.error("Could not find the file - "+fileId);
 				}
-		}
-		catch (Exception e) {
-			throw new ArkSystemException(e.getMessage());
-		}
 	}
 
 	public List<SubjectFile> searchSubjectFile(SubjectFile subjectFile) throws EntityNotFoundException, ArkSystemException {
@@ -943,7 +1208,7 @@ public class StudyServiceImpl implements IStudyService {
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_DELETED);
 
-		ah.setComment("Deleted Study Component " + studyComp.getName());
+		ah.setComment("Study Component " + studyComp.getName()+" was successfully deleted.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_STUDY_COMPONENT);
 		ah.setStudyStatus(studyComp.getStudy().getStudyStatus());
 		ah.setEntityId(studyComp.getId());
@@ -961,7 +1226,7 @@ public class StudyServiceImpl implements IStudyService {
 		try {
 			InputStream is = new FileInputStream(file);
 
-			log.debug("Importing and reporting Subject file");
+			log.info("Importing and reporting Subject file");
 			uploadReport = subjectUploader.uploadAndReportMatrixSubjectFile(is, file.length(), fileFormat, delimChar, uidsToUpdate);
 		}
 		catch (IOException ioe) {
@@ -981,7 +1246,7 @@ public class StudyServiceImpl implements IStudyService {
 		SubjectUploadValidator subjectUploadValidator = new SubjectUploadValidator(iArkCommonService);
 
 		try {
-			log.debug("Validating Subject file format");
+			log.info("Validating Subject file format");
 			InputStream is = new FileInputStream(file);
 			// validationMessages =
 			subjectUploadValidator.validateSubjectMatrixFileFormat(is, file.length(), fileFormat, delimChar);
@@ -1017,15 +1282,16 @@ public class StudyServiceImpl implements IStudyService {
 	/**
 	 * 
 	 */
-	public StringBuffer uploadAndReportCustomDataFile(InputStream inputStream, long size, String fileFormat, char delimChar, long studyId, List<String> listOfUIDsToUpdate) {
+	public StringBuffer uploadAndReportCustomDataFile(InputStream inputStream, long size, String fileFormat, char delimChar, long studyId,
+			List<String> listOfUIDsToUpdate,String customFieldType,UploadVO uploadVO) {
 		StringBuffer uploadReport = null;
 		Study study = iArkCommonService.getStudy(studyId);
 		DataUploader dataUploader = new DataUploader(study, iArkCommonService, this);
 		try {
-			String customFieldType=UploadUtilities.getUploadFileDataFileSubjectOrFamily(inputStream,delimChar);
-			if(au.org.theark.core.Constants.SUBJECTUID.equals(customFieldType)){
-					uploadReport = dataUploader.uploadAndReportSubjectCustomDataFile(inputStream, size, fileFormat, delimChar, listOfUIDsToUpdate);
-			}else if(au.org.theark.core.Constants.FAMILYUID.equals(customFieldType)){
+			//String customFieldType=new UploadUtilities().getUploadFileDataFileSubjectOrFamily(inputStream,delimChar);
+			if(au.org.theark.core.Constants.SUBJECT.equals(customFieldType)){
+					uploadReport = dataUploader.uploadAndReportSubjectCustomDataFile(inputStream, size, fileFormat, delimChar, listOfUIDsToUpdate,uploadVO);
+			}else if(au.org.theark.core.Constants.FAMILY.equals(customFieldType)){
 				uploadReport = dataUploader.uploadAndReportFamilyCustomDataFile(inputStream, size, fileFormat, delimChar, listOfUIDsToUpdate);
 			}else{
 				log.error(Constants.FILE_FORMAT_EXCEPTION);
@@ -1198,6 +1464,11 @@ public class StudyServiceImpl implements IStudyService {
 		return iStudyDao.getFamilyCustomFieldDataCount(linkSubjectStudyCriteria, arkFunction);
 	}
 
+	/**
+	 * During the insert and delete the record of the custom filed we must careful to update the status of the 
+	 * customer field "HasData" stage that is why we have additional update statements for 
+	 * Please check insert and update here.
+	 */
 	@Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
 	public List<SubjectCustomFieldData> createOrUpdateSubjectCustomFieldData(List<SubjectCustomFieldData> subjectCustomFieldDataList) {
 
@@ -1437,7 +1708,7 @@ public class StudyServiceImpl implements IStudyService {
 
 		AuditHistory ah = new AuditHistory();
 		ah.setActionType(au.org.theark.core.Constants.ACTION_TYPE_UPDATED);
-		ah.setComment("Cloned Subject " + linkSubjectStudy.getSubjectUID());
+		ah.setComment("Subject " + linkSubjectStudy.getSubjectUID()+" was successfully cloned.");
 		ah.setEntityType(au.org.theark.core.Constants.ENTITY_TYPE_SUBJECT);
 		ah.setEntityId(linkSubjectStudy.getId());
 		iArkCommonService.createAuditHistory(ah);
@@ -1473,6 +1744,10 @@ public class StudyServiceImpl implements IStudyService {
 
 	public void setPreferredMailingAdressToFalse(Person person) {
 		iStudyDao.setPreferredMailingAdressToFalse(person);
+	}
+	
+	public void setPreferredEmailAccountToFalse(Person person) {
+		iStudyDao.setPreferredEmailAccountToFalse(person);
 	}
 
 	public MaritalStatus getDefaultMaritalStatus() {
@@ -1517,6 +1792,10 @@ public class StudyServiceImpl implements IStudyService {
 
 	public EmailStatus getDefaultEmailStatus() {
 		return iStudyDao.getDefaultEmailStatus();
+	}
+	
+	public EmailAccountType getDefaultEmailAccountType() {
+		return iStudyDao.getDefaultEmailAccountType();
 	}
 
 	public List<ConsentOption> getConsentOptions() {
@@ -1996,7 +2275,8 @@ public class StudyServiceImpl implements IStudyService {
 		return age;
 	}
 
-	private String calculatePedigreeAge(Date birthDate, Date selectDate) {
+	@Override
+	public String calculatePedigreeAge(Date birthDate, Date selectDate) {
 		String age = null;
 		LocalDate oldDate = null;
 		LocalDate newDate = null;
@@ -2243,8 +2523,13 @@ public class StudyServiceImpl implements IStudyService {
 	public List<Phone> pageablePersonPhoneList(Long personId, Phone phoneCriteria, int first, int count) {
 		return iStudyDao.pageablePersonPhoneLst(personId,phoneCriteria, first, count);
 	}
+	
 	public List<Address> pageablePersonAddressList(Long personId, Address adressCriteria, int first, int count) {
 		return iStudyDao.pageablePersonAddressLst(personId,adressCriteria, first, count);
+	}
+	
+	public List<EmailAccount> pageablePersonEmailLst(Long personId,int first, int count){
+		return iStudyDao.pageablePersonEmailLst(personId, first, count);
 	}
 	
 	public List<CustomField> getFamilyUIdCustomFieldsForPedigreeRelativesList(Long studyId){
@@ -2255,7 +2540,7 @@ public class StudyServiceImpl implements IStudyService {
 		return iStudyDao.getFamilyCustomFieldDataList(linkSubjectStudyCriteria, arkFunction, customFieldCategory, customFieldType, first, count);
 	}
 	public String getSubjectFamilyId(Long studyId, String subjectUID){
-		return iStudyDao.getSubjectFamilyUId(studyId, subjectUID);
+		return iStudyDao.getSubjectFamilyId(studyId, subjectUID);
 	}
 
 	@Override
@@ -2301,7 +2586,85 @@ public class StudyServiceImpl implements IStudyService {
 	}
 	@Override
 	public boolean isStudyComponentBeingUsedInConsent(StudyComp studyComp) {
-		
 		return iStudyDao.isStudyComponentBeingUsedInConsent(studyComp);
 	}
+
+	@Override
+	public List<CorrespondenceOutcomeType> getCorrespondenceOutcomeTypesForModeAndDirection(CorrespondenceModeType correspondenceModeType,CorrespondenceDirectionType correspondenceDirectionType) {
+		return iStudyDao.getCorrespondenceOutcomeTypesForModeAndDirection(correspondenceModeType, correspondenceDirectionType);
+	}
+
+	@Override
+	public boolean isAlreadyHasFileAttached(LinkSubjectStudy linkSubjectStudy,StudyComp studyComp) {
+		return iStudyDao.isAlreadyHasFileAttached(linkSubjectStudy, studyComp);
+	}
+
+	@Override
+	public SubjectFile getSubjectFileParticularConsent(LinkSubjectStudy linkSubjectStudy, StudyComp studyComp) {
+		return iStudyDao.getSubjectFileParticularConsent(linkSubjectStudy, studyComp);
+	}
+
+	@Override
+	public List<StudyComp> getStudyComponentByStudyAndNotInLinkSubjectSubjectFile(Study study,LinkSubjectStudy linkSubjectStudy) {
+		return iStudyDao.getStudyComponentByStudyAndNotInLinkSubjectSubjectFile(study, linkSubjectStudy);
+	}
+
+	@Override
+	public List<CorrespondenceDirectionType> getCorrespondenceDirectionForMode(CorrespondenceModeType correspondenceModeType) {
+		return iStudyDao.getCorrespondenceDirectionForMode(correspondenceModeType);
+	}
+
+	@Override
+	public Boolean isSubjectUIDUnique(Study study, String subjectUid,String action) {
+		return iStudyDao.isSubjectUIDUnique(subjectUid, study.getId(), action);
+	}
+
+	@Override
+	public Study getStudy(Long studyId) {
+		return iStudyDao.getStudy(studyId);
+	}
+
+	@Override
+	public LinkSubjectStudy getLinkSubjectStudyBySubjectUidAndStudy(String subjectUid, Study study) {
+		return iStudyDao.getLinkSubjectStudyBySubjectUidAndStudy(subjectUid, study);
+	}
+
+	@Override
+	public LinkSubjectPedigree getParentRelationShipByLinkSubjectStudies(LinkSubjectStudy subject, LinkSubjectStudy relative) {
+		return iStudyDao.getParentRelationShipByLinkSubjectStudies(subject, relative);
+	}
+
+	@Override
+	public LinkSubjectTwin getTwinRelationShipByLinkSubjectStudies(LinkSubjectStudy subject, LinkSubjectStudy relative) {
+		return iStudyDao.getTwinRelationShipByLinkSubjectStudies(subject, relative);
+	}
+
+	@Override
+	public void delete(LinkSubjectTwin twin) {
+		iStudyDao.delete(twin);
+	}
+
+	@Override
+	public LinkSubjectPedigree getLinkSubjectPedigreeById(Long id) {
+		return iStudyDao.getLinkSubjectPedigreeById(id);
+	}
+
+	@Override
+	public LinkSubjectTwin getLinkSubjectTwinById(Long id) {
+		return iStudyDao.getLinkSubjectTwinById(id);
+	}
+
+	@Override
+	public List<LinkSubjectPedigree> getListOfLinkSubjectPedigreeForStudy(Study study) {
+		return iStudyDao.getListOfLinkSubjectPedigreeForStudy(study);
+	}
+
+	@Override
+	public List<LinkSubjectTwin> getListOfLinkSubjectTwinForStudy(Study study) {
+		return iStudyDao.getListOfLinkSubjectTwinForStudy(study);
+	}
+	
+
+	
+
 }

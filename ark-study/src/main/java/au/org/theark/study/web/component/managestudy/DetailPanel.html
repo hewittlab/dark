@@ -37,19 +37,14 @@
 						&nbsp;
 					</div>
 
-					<div class="fldLabel">
-						<div class="label">
-							<wicket:message key="study.summary.statistics">
-								Summary Statistics:
-							</wicket:message>
-						</div>
+					<div style="float : left;height: 5%;width: 40%;">
+						<pre wicket:id="totalSubjectsLabel">[TotalSubjects]</pre>
 					</div>
-					<div class="fldControl">
+					<!-- <div class="fldControl">
 						<span wicket:id="totalSubjectsLabel">
 							[TotalSubjects]
 						</span>
-					</div>
-
+					</div> -->
 					<div class="detailPanelBreaker">
 						&nbsp;
 					</div>
@@ -350,7 +345,36 @@
 				<div class="detailPanelBreaker">
 					&nbsp;
 				</div>
+				
+				<div class="panelContentLeft">
+					&nbsp;
+				</div>
+				
+				<div class="fldLabel">
+					&nbsp;
+				</div>
+				
+				<div class="fldControl">
+					&nbsp;
+				</div>
+				
+				<div class="panelMargin">
+					&nbsp;
+				</div>
+	
+				<div class="fldLabel">
+					&nbsp;
+				</div>
 
+				<!-- Need to delete the file attached. -->
+				<div class="fldControl">
+					<a href="#" wicket:id="subjectLogo.link">
+						<b>
+							<span wicket:id="study.filename">File Name</span>
+						</b>
+					</a>
+					<a href="#" wicket:id="deleteButton"><img  src="images/icons/delete.png" /></a>
+				</div>
 
 				<div class="detailPanelBreaker">
 					&nbsp;
@@ -400,6 +424,7 @@
 					<div class="fldControl">
 						<input wicket:id="subjectFileUpload" type="file" />
 					</div>
+					
 				</div>
 
 				<div class="detailSectionBorder">

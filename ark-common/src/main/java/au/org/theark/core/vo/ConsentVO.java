@@ -30,7 +30,7 @@ import au.org.theark.core.model.study.entity.SubjectFile;
  * @author nivedann
  * 
  */
-public class ConsentVO implements Serializable {
+public class ConsentVO implements ArkVo,Serializable {
 
 	private static final long				serialVersionUID	= -3717906790802004376L;
 	protected Consent							consent;
@@ -39,6 +39,7 @@ public class ConsentVO implements Serializable {
 	protected Collection<Consent>			consentList;
 	protected Collection<ConsentFile>	consentFileList;
 	protected SubjectFile					subjectFile;
+	private String 									file;
 
 	/**
 	 * We will need upload information here
@@ -96,4 +97,18 @@ public class ConsentVO implements Serializable {
 	public void setSubjectFile(SubjectFile subjectFile) {
 		this.subjectFile = subjectFile;
 	}
+
+	public String getFile() {
+		return file;
+	}
+
+	public void setFile(String file) {
+		this.file = file;
+	}
+
+	@Override
+	public String getArkVoName() {
+		return "Consent";
+	}
+	
 }

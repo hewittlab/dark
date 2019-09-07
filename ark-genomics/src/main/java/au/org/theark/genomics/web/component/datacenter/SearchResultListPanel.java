@@ -3,8 +3,12 @@ package au.org.theark.genomics.web.component.datacenter;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.wicket.AttributeModifier;
+import org.apache.wicket.Component;
 import org.apache.wicket.ajax.AjaxRequestTarget;
+import org.apache.wicket.ajax.markup.html.AjaxLink;
 import org.apache.wicket.ajax.markup.html.form.AjaxButton;
 import org.apache.wicket.markup.html.basic.Label;
 import org.apache.wicket.markup.html.form.Form;
@@ -12,14 +16,17 @@ import org.apache.wicket.markup.html.list.ListItem;
 import org.apache.wicket.markup.html.list.PageableListView;
 import org.apache.wicket.markup.html.panel.Panel;
 import org.apache.wicket.model.AbstractReadOnlyModel;
+import org.apache.wicket.model.CompoundPropertyModel;
 import org.apache.wicket.model.IModel;
 import org.apache.wicket.spring.injection.annot.SpringBean;
 
 import au.org.theark.core.model.spark.entity.DataSource;
+import au.org.theark.core.model.spark.entity.MicroService;
 import au.org.theark.core.service.IArkCommonService;
 import au.org.theark.core.vo.ArkCrudContainerVO;
 import au.org.theark.core.web.component.AbstractDetailModalWindow;
 import au.org.theark.core.web.component.button.ArkAjaxButton;
+import au.org.theark.core.web.component.link.ArkBusyAjaxLink;
 import au.org.theark.genomics.jobs.DataSourceUploadExecutor;
 import au.org.theark.genomics.model.vo.DataCenterVo;
 import au.org.theark.genomics.model.vo.DataSourceVo;
@@ -29,6 +36,7 @@ import au.org.theark.genomics.web.component.datacenter.form.ContainerForm;
 
 public class SearchResultListPanel extends Panel {
 
+	
 	/**
 	 * 
 	 */
@@ -38,9 +46,13 @@ public class SearchResultListPanel extends Panel {
 
 	private ArkCrudContainerVO arkCrudContainerVO;
 
-	private AbstractDetailModalWindow modalWindow;
+	private AbstractDetailModalWindow detailModalWindow;
+	
+	private AbstractDetailModalWindow queryModalWindow;
 
 	private DataSourceContainerPanel dataSourceContainerPanel;
+
+	private QueryBuilderContainerPanel queryBuilderContainerPanel;
 
 	@SpringBean(name = au.org.theark.core.Constants.ARK_COMMON_SERVICE)
 	private IArkCommonService iArkCommonService;
@@ -52,7 +64,13 @@ public class SearchResultListPanel extends Panel {
 
 	private AjaxButton plinkDeleteBtn;
 
+	private AjaxButton queryBtn;
+	
+	private AjaxButton backBtn;
+
 	private Label statusLabel;
+	
+	private PageableListView<DataSourceVo> sitePageableListView;
 
 	public SearchResultListPanel(String id, ArkCrudContainerVO crudContainerVO, ContainerForm studyCompContainerForm) {
 		super(id);
@@ -65,11 +83,114 @@ public class SearchResultListPanel extends Panel {
 
 	protected void initializeComponents() {
 
-		modalWindow = new AbstractDetailModalWindow("detailModalWindow") {
+		detailModalWindow = new AbstractDetailModalWindow("detailModalWindow") {
 
 			@Override
 			protected void onCloseModalWindow(AjaxRequestTarget target) {
+				
+				DataCenterVo dataCenterVo = containerForm.getModelObject();
+				CompoundPropertyModel<DataCenterVo> cpmModel= (CompoundPropertyModel<DataCenterVo>)containerForm.getModel();
+				List<DataSourceVo> resultList = iGenomicService.searchDataSources(containerForm.getModelObject());
 
+				Component uploadBtn = arkCrudContainerVO.getSearchResultPanelContainer().get("searchResults").get("plinkUpload");
+				Component deleteBtn = arkCrudContainerVO.getSearchResultPanelContainer().get("searchResults").get("plinkDelete");
+				Component queryBtn = arkCrudContainerVO.getSearchResultPanelContainer().get("searchResults").get("queryBtn");
+
+				
+				
+				if (resultList != null && resultList.size() == 0) {
+					String dataCenter = dataCenterVo.getName();
+
+					MicroService microService = dataCenterVo.getMicroService();
+
+					if (microService == null || dataCenter == null) {
+						this.error("You need to select a service and data centre prior to performing a search.");
+					} else {
+//						this.info(getModelObject().getName() + " cannot be reach in the " + getModelObject().getMicroService().getName() + " Service");
+						this.info("Cannot find any directories or files in the search location.");
+					}
+					target.add(feedbackPanel);
+
+					uploadBtn.setEnabled(false);
+					deleteBtn.setEnabled(false);
+					queryBtn.setEnabled(false);
+
+					cpmModel.getObject().setStatus(null);
+				} else {
+					
+					DataSourceVo dataSourceVo = new DataSourceVo();
+					dataSourceVo.setDataCenter(cpmModel.getObject().getName());
+					dataSourceVo.setMicroService(cpmModel.getObject().getMicroService());
+
+					String dir = cpmModel.getObject().getDirectory();
+					dataSourceVo.setPath(dir == null ? "/" : dir.charAt(0) == '/' ? dir : ("/" + dir));
+
+					DataSource dataSource = iGenomicService.getDataSource(dataSourceVo);
+
+					if (dataSource != null && dataSource.getStatus() != null) {
+						cpmModel.getObject().setStatus(dataSource.getStatus());
+					} else {
+						cpmModel.getObject().setStatus(Constants.STATUS_UNPROCESSED);
+					}
+								
+					for(DataSourceVo vo : resultList){
+						if(vo.getDataSource().getStatus() == null || vo.getDataSource().getStatus().trim().length() == 0){
+							if(vo.getFileName().contains(".map") || 
+									vo.getFileName().contains(".ped") ||
+									vo.getFileName().contains(".bim") ||
+									vo.getFileName().contains(".fam") ||
+									vo.getFileName().contains(".bed") 
+									){
+								
+								if("Deleting".equalsIgnoreCase(cpmModel.getObject().getStatus()) ||
+										"Uploading".equalsIgnoreCase(cpmModel.getObject().getStatus())
+										){
+									vo.getDataSource().setStatus(Constants.STATUS_NOT_READY);
+								}else{
+									vo.getDataSource().setStatus(Constants.STATUS_READY);
+								}
+							
+							}else{
+								vo.getDataSource().setStatus(Constants.STATUS_NOT_REQUIRED);
+							}
+						}
+					}
+					
+					uploadBtn.setEnabled(false);
+					deleteBtn.setEnabled(false);
+					queryBtn.setEnabled(false);
+					
+					if (dataCenterVo.getDirectory() != null && dataCenterVo.getDirectory().length()>0 ) {
+						
+						if(dataSource == null ){
+							uploadBtn.setEnabled(true);
+						}else{
+							if(dataSource.getStatus() == null || dataSource.getStatus().trim().length() == 0){
+								uploadBtn.setEnabled(true);
+							}else if(Constants.STATUS_UNPROCESSED.equalsIgnoreCase(dataSource.getStatus())){
+								uploadBtn.setEnabled(true);
+							}
+						}
+
+						if(dataSource !=null && Constants.STATUS_PROCESSED.equalsIgnoreCase(dataSource.getStatus())){
+							deleteBtn.setEnabled(true);
+							queryBtn.setEnabled(true);
+						}
+					}
+				}
+				
+				sitePageableListView.removeAll();
+				containerForm.getModelObject().setDataSourceList(resultList);
+				target.add(arkCrudContainerVO.getSearchResultPanelContainer());
+//				target.add(arkCrudContainerVO.getSearchPanelContainer());	
+			}
+		};
+
+		queryModalWindow = new AbstractDetailModalWindow("queryModalWindow") {
+			
+			@Override
+			protected void onCloseModalWindow(AjaxRequestTarget target) {
+				
 			}
 		};
 
@@ -112,6 +233,7 @@ public class SearchResultListPanel extends Panel {
 					
 					this.setEnabled(false);
 					plinkDeleteBtn.setEnabled(false);
+					queryBtn.setEnabled(false);
 
 					target.add(SearchResultListPanel.this);
 				} catch (Exception e) {
@@ -162,6 +284,8 @@ public class SearchResultListPanel extends Panel {
 					executor.run();
 					
 					this.setEnabled(false);
+					queryBtn.setEnabled(false);
+					plinkUploadBtn.setEnabled(false);
 
 					target.add(SearchResultListPanel.this);
 					
@@ -172,30 +296,206 @@ public class SearchResultListPanel extends Panel {
 		};
 
 		plinkDeleteBtn.setEnabled(false);
+		
+		queryBtn = new AjaxButton("queryBtn") {
+			@Override
+			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {				
+//				DataSource dataSource = new DataSource();
+				queryBuilderContainerPanel = new QueryBuilderContainerPanel("content", queryModalWindow);
+//				if (dataSource.getId() != null) {
+//					queryBuilderContainerPanel.enableDeleteButton(true);
+//				} else {
+//					queryBuilderContainerPanel.enableDeleteButton(false);
+//				}
+				
+				queryBuilderContainerPanel.enableDeleteButton(false);
+				queryModalWindow.setTitle("Query Builder");
+				queryModalWindow.setInitialWidth(90);
+				queryModalWindow.setInitialHeight(100);
+				queryBuilderContainerPanel.setPropertyModelObject(containerForm.getModelObject());
+				queryModalWindow.setContent(queryBuilderContainerPanel);
+				queryModalWindow.show(target);
+			}
+		};
+		queryBtn.setEnabled(false);
 
 		statusLabel = new Label("status");
+		
+		backBtn = new AjaxButton("backBtn") {
+			
+			@Override
+			protected void onSubmit(AjaxRequestTarget target, Form<?> form) {
+				
+				DataCenterVo dataCenterVo = containerForm.getModelObject();
+				
+				String currDirectory = dataCenterVo.getDirectory();
+				
+				System.out.println("------------------Curr Dir---------------------"+currDirectory);
+				
+				if (currDirectory != null) {
+					String directories[] = currDirectory.split("/");
+				
+					String prevDirectory=null;
+				
+					if(directories.length -1 > 0){
+						prevDirectory = StringUtils.join(ArrayUtils.remove(directories, (directories.length -1)),"/");
+					}
+					else{
+						prevDirectory = currDirectory;
+					}
+					System.out.println("-----------------Prev Directory------------------"+prevDirectory);
+				
+//				dataCenterVo.setDirectory(StringUtils.prependIfMissingIgnoreCase(prevDirectory, "/"));
+					dataCenterVo.setDirectory(prevDirectory);
+				
+					System.out.println("-----------------DC Directory------------------"+dataCenterVo.getDirectory());
+				
+					
+				
+				}
+				
+				List<DataSourceVo> resultList = iGenomicService.searchDataSources(dataCenterVo);
+				
+				dataCenterVo.setDataSourceList(resultList);
+				sitePageableListView.removeAll();
+				enableQueryButtons(resultList);
+				
+				target.add(arkCrudContainerVO.getSearchResultPanelContainer());
+				target.add(arkCrudContainerVO.getSearchPanelContainer());
+				target.add(backBtn);
+			}
+			
+			@Override
+			public boolean isEnabled() {
+				DataCenterVo dataCenterVo = containerForm.getModelObject();
+				
+				return (!StringUtils.isEmpty(dataCenterVo.getDirectory()));
+			}
+		};
 
+	}
+	
+	private void enableQueryButtons(List<DataSourceVo> resultList){
+		
+		DataCenterVo dataCenterVo = containerForm.getModelObject();
+		CompoundPropertyModel<DataCenterVo> cpmModel= (CompoundPropertyModel<DataCenterVo>)containerForm.getModel();
+		
+		Component uploadBtn = arkCrudContainerVO.getSearchResultPanelContainer().get("searchResults").get("plinkUpload");
+		Component deleteBtn = arkCrudContainerVO.getSearchResultPanelContainer().get("searchResults").get("plinkDelete");
+		Component queryBtn = arkCrudContainerVO.getSearchResultPanelContainer().get("searchResults").get("queryBtn");
+
+		
+		
+		if (resultList != null && resultList.size() == 0) {
+			String dataCenter = dataCenterVo.getName();
+
+			MicroService microService = dataCenterVo.getMicroService();
+
+			if (microService == null || dataCenter == null) {
+				this.error("You need to select a service and data centre prior to performing a search.");
+			} else {
+//				this.info(getModelObject().getName() + " cannot be reach in the " + getModelObject().getMicroService().getName() + " Service");
+				this.info("Cannot find any directories or files in the search location.");
+			}
+//			target.add(feedbackPanel);
+
+			uploadBtn.setEnabled(false);
+			deleteBtn.setEnabled(false);
+			queryBtn.setEnabled(false);
+
+			cpmModel.getObject().setStatus(null);
+		} else {
+			
+			DataSourceVo dataSourceVo = new DataSourceVo();
+			dataSourceVo.setDataCenter(cpmModel.getObject().getName());
+			dataSourceVo.setMicroService(cpmModel.getObject().getMicroService());
+
+			
+			String dir = cpmModel.getObject().getDirectory();
+			System.out.println("-------------- Dir --------------------- "+ dir );
+//			dataSourceVo.setPath(dir == null || dir.length() > 0 ? "/" : dir.charAt(0) == '/' ? dir : ("/" + dir));
+			dataSourceVo.setPath(dir == null || dir.length() < 1 ? "/" : dir.charAt(0) == '/' ? dir : ("/" + dir));
+
+			DataSource dataSource = iGenomicService.getDataSource(dataSourceVo);
+
+			if (dataSource != null && dataSource.getStatus() != null) {
+				cpmModel.getObject().setStatus(dataSource.getStatus());
+			} else {
+				cpmModel.getObject().setStatus(Constants.STATUS_UNPROCESSED);
+			}
+						
+			for(DataSourceVo vo : resultList){
+				if(vo.getDataSource().getStatus() == null || vo.getDataSource().getStatus().trim().length() == 0){
+					if(vo.getFileName().contains(".map") || 
+							vo.getFileName().contains(".ped") ||
+							vo.getFileName().contains(".bim") ||
+							vo.getFileName().contains(".fam") ||
+							vo.getFileName().contains(".bed") 
+							){
+						
+						if("Deleting".equalsIgnoreCase(cpmModel.getObject().getStatus()) ||
+								"Uploading".equalsIgnoreCase(cpmModel.getObject().getStatus())
+								){
+							vo.getDataSource().setStatus(Constants.STATUS_NOT_READY);
+						}else{
+							vo.getDataSource().setStatus(Constants.STATUS_READY);
+						}
+					
+					}else{
+						vo.getDataSource().setStatus(Constants.STATUS_NOT_REQUIRED);
+					}
+				}
+			}
+			
+			uploadBtn.setEnabled(false);
+			deleteBtn.setEnabled(false);
+			queryBtn.setEnabled(false);
+			
+			if (dataCenterVo.getDirectory() != null || dataCenterVo.getDirectory().length()>0) {
+				
+				if(dataSource == null ){
+					uploadBtn.setEnabled(true);
+				}else{
+					if(dataSource.getStatus() == null || dataSource.getStatus().trim().length() == 0){
+						uploadBtn.setEnabled(true);
+					}else if(Constants.STATUS_UNPROCESSED.equalsIgnoreCase(dataSource.getStatus())){
+						uploadBtn.setEnabled(true);
+					}
+				}
+
+				if(dataSource !=null && Constants.STATUS_PROCESSED.equalsIgnoreCase(dataSource.getStatus())){
+					deleteBtn.setEnabled(true);
+					queryBtn.setEnabled(true);
+				}
+			}
+		}
 	}
 
 	protected void addComponents() {
-		add(modalWindow);
+		add(detailModalWindow);
+		add(queryModalWindow);
 		add(plinkUploadBtn);
 		add(plinkDeleteBtn);
+		add(queryBtn);
 		add(statusLabel);
+		add(backBtn);
 	}
 
 	public PageableListView<DataSourceVo> buildPageableListView(IModel iModel) {
-		PageableListView<DataSourceVo> sitePageableListView = new PageableListView<DataSourceVo>("dataSourceList", iModel, iArkCommonService.getUserConfig(au.org.theark.core.Constants.CONFIG_ROWS_PER_PAGE).getIntValue()) {
+		this.sitePageableListView = new PageableListView<DataSourceVo>("dataSourceList", iModel, iArkCommonService.getRowsPerPage()) {
 
 			@Override
 			protected void populateItem(final ListItem<DataSourceVo> item) {
 				DataSourceVo dataSource = item.getModelObject();
 
-				if (dataSource.getFileName() != null) {
-					item.add(new Label(Constants.DATA_SOURCE_VO_FILE_NAME, dataSource.getFileName()));
-				} else {
-					item.add(new Label(Constants.DATA_SOURCE_VO_FILE_NAME, ""));
-				}
+//				if (dataSource.getFileName() != null) {
+//					item.add(new Label(Constants.DATA_SOURCE_VO_FILE_NAME, dataSource.getFileName()));
+//				} else {
+//					item.add(new Label(Constants.DATA_SOURCE_VO_FILE_NAME, ""));
+//				}
+				
+				item.add(buildNameLink(dataSource));
+				
 				if (dataSource.getDirectory() != null) {
 					item.add(new Label(Constants.DATA_SOURCE_VO_DIRECTORY, dataSource.getDirectory()));
 				} else {
@@ -229,6 +529,54 @@ public class SearchResultListPanel extends Panel {
 
 		return sitePageableListView;
 	}
+	
+	@SuppressWarnings({ "serial" })
+	private AjaxLink buildNameLink(final DataSourceVo dataSourceVo) {
+
+		ArkBusyAjaxLink link = new ArkBusyAjaxLink(Constants.DATA_SOURCE_VO_FILE_NAME) {
+			
+			@Override
+			public void onClick(AjaxRequestTarget target) {
+				// TODO Auto-generated method stub
+
+				DataCenterVo dataCenterVo = containerForm.getModelObject();
+				
+				dataCenterVo.setDirectory(dataSourceVo.getPath());
+				
+				
+				List<DataSourceVo> resultList = iGenomicService.searchDataSources(dataCenterVo);
+				
+				dataCenterVo.setDataSourceList(resultList);
+				sitePageableListView.removeAll();
+//				arkCrudContainerVO.getSearchResultPanelContainer().setVisible(true);
+				enableQueryButtons(resultList);
+
+				target.add(arkCrudContainerVO.getSearchResultPanelContainer());
+				target.add(arkCrudContainerVO.getSearchPanelContainer());
+				
+//				target.add(feedbackPanel);
+				
+//				dataSourceContainerPanel = new DataSourceContainerPanel("content", detailModalWindow);
+//
+//				if (dataSource.getId() != null) {
+//					dataSourceContainerPanel.enableDeleteButton(true);
+//				} else {
+//					dataSourceContainerPanel.enableDeleteButton(false);
+//				}
+				
+			}
+			
+			@Override
+			public boolean isEnabled() {
+				return "Yes".equalsIgnoreCase(dataSourceVo.getDirectory());
+			}
+		};
+
+		Label nameLinkLabel = new Label("nameLbl", dataSourceVo.getFileName());
+		link.add(nameLinkLabel);
+		return link;
+	}	
+
 
 	@SuppressWarnings({ "serial" })
 	private ArkAjaxButton buildSourceLink(final DataSourceVo dataSourceVo) {
@@ -240,7 +588,7 @@ public class SearchResultListPanel extends Panel {
 				super.onSubmit(target, form);
 				DataSource dataSource = dataSourceVo.getDataSource();
 
-				dataSourceContainerPanel = new DataSourceContainerPanel("content", modalWindow);
+				dataSourceContainerPanel = new DataSourceContainerPanel("content", detailModalWindow);
 
 				if (dataSource.getId() != null) {
 					dataSourceContainerPanel.enableDeleteButton(true);
@@ -248,12 +596,12 @@ public class SearchResultListPanel extends Panel {
 					dataSourceContainerPanel.enableDeleteButton(false);
 				}
 
-				modalWindow.setTitle("Details");
-				modalWindow.setInitialWidth(90);
-				modalWindow.setInitialHeight(100);
+				detailModalWindow.setTitle("Details");
+				detailModalWindow.setInitialWidth(90);
+				detailModalWindow.setInitialHeight(100);
 				dataSourceContainerPanel.setPropertyModelObject(dataSourceVo);
-				modalWindow.setContent(dataSourceContainerPanel);
-				modalWindow.show(target);
+				detailModalWindow.setContent(dataSourceContainerPanel);
+				detailModalWindow.show(target);
 
 			}
 		};

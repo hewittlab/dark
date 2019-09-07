@@ -45,8 +45,8 @@ import au.org.theark.core.Constants;
 import au.org.theark.core.exception.ArkSystemException;
 import au.org.theark.core.exception.EntityNotFoundException;
 import au.org.theark.core.exception.StatusNotAvailableException;
-import au.org.theark.core.model.geno.entity.LinkSubjectStudyPipeline;
-import au.org.theark.core.model.config.entity.UserConfig;
+import au.org.theark.core.model.config.entity.Setting;
+import au.org.theark.core.model.config.entity.UserSpecificSetting;
 import au.org.theark.core.model.study.entity.ArkFunction;
 import au.org.theark.core.model.study.entity.ArkModule;
 import au.org.theark.core.model.study.entity.ArkModuleRole;
@@ -199,7 +199,6 @@ public class ArkAuthorisationDao<T> extends HibernateSessionDao implements IArkA
 		criteria.add(Restrictions.eq("arkRole", arkRole));
 		criteria.add(Restrictions.eq("arkUser", arkUser));
 		criteria.add(Restrictions.eq("arkModule", arkModule));
-
 		criteria.setMaxResults(1);
 		ArkUserRole arkUserRole = (ArkUserRole) criteria.uniqueResult();
 		if (arkUserRole != null) {
@@ -481,10 +480,6 @@ public class ArkAuthorisationDao<T> extends HibernateSessionDao implements IArkA
 				session.save(arkUserRole);
 			}
 		}
-		
-		for (UserConfig config : arkUserVO.getArkUserConfigs()) {
-			session.saveOrUpdate(config);
-		}
 	}
 
 	/**
@@ -614,9 +609,6 @@ public class ArkAuthorisationDao<T> extends HibernateSessionDao implements IArkA
 						session.delete(arkUserRoleToRemove);
 					}
 				}
-				for (UserConfig config : arkUserVO.getArkUserConfigs()) {
-					session.update(config);
-				}
 			}
 			else {
 				createArkUser(arkUserVO);
@@ -695,9 +687,9 @@ public class ArkAuthorisationDao<T> extends HibernateSessionDao implements IArkA
 		criteria.addOrder(Order.asc("module.id"));
 
 		// Restrict by Study if NOT Super Administrator
-		if (!isUserAdminHelper(arkUser.getLdapUserName(), au.org.theark.core.security.RoleConstants.ARK_ROLE_SUPER_ADMINISTATOR)) {
+		//if (!isUserAdminHelper(arkUser.getLdapUserName(), au.org.theark.core.security.RoleConstants.ARK_ROLE_SUPER_ADMINISTATOR)) {
 			criteria.add(Restrictions.eq("study", arkUserVO.getStudy()));
-		}
+		//}
 
 		try {
 			arkUserRoleList = criteria.list();
@@ -747,7 +739,7 @@ public class ArkAuthorisationDao<T> extends HibernateSessionDao implements IArkA
 		for (ArkUserRole arkUserRole : arkUserVO.getArkUserRoleList()) {
 			session.delete(arkUserRole);
 		}
-
+		
 		List<ArkUserRole> listOfRoles = getArkRoleListByUser(arkUserVO);
 		if (listOfRoles.size() <= 0) {
 			// Remove the ArkUser From the database only
@@ -888,11 +880,14 @@ public class ArkAuthorisationDao<T> extends HibernateSessionDao implements IArkA
 		if (searchStudy.getStudyStatus() != null) {
 			// In future, Super Administrators may be able to search for Archived studies
 			studyCriteria.add(Restrictions.eq("studyStatus", searchStudy.getStudyStatus()));
+			
 			if (!isSuperUser) {
-				// If not a Super Admin always remove Archived studies
+				// If not a Super Admin and status selected as Archive always remove Archived studies
 				try {
 					StudyStatus status = getStudyStatus("Archive");
-					studyCriteria.add(Restrictions.ne("studyStatus", status));
+					if(!searchStudy.getStudyStatus().equals(status)){
+						studyCriteria.add(Restrictions.ne("studyStatus", status));
+					}
 				}
 				catch (StatusNotAvailableException notAvailable) {
 					log.error("Cannot look up and filter on archive status. Reference data could be missing");
@@ -901,12 +896,14 @@ public class ArkAuthorisationDao<T> extends HibernateSessionDao implements IArkA
 		}
 		else {
 			// If no status is selected, then default to return all except Archived
-			try {
-				StudyStatus status = getStudyStatus("Archive");
-				studyCriteria.add(Restrictions.ne("studyStatus", status));
-			}
-			catch (StatusNotAvailableException notAvailable) {
-				log.error("Cannot look up and filter on archive status. Reference data could be missing");
+			if (!isSuperUser) {
+				try {
+					StudyStatus status = getStudyStatus("Archive");
+					studyCriteria.add(Restrictions.ne("studyStatus", status));
+				}
+				catch (StatusNotAvailableException notAvailable) {
+					log.error("Cannot look up and filter on archive status. Reference data could be missing");
+				}
 			}
 		}
 		studyCriteria.addOrder(Order.asc("parentStudy"));
@@ -1204,7 +1201,8 @@ public class ArkAuthorisationDao<T> extends HibernateSessionDao implements IArkA
 	@SuppressWarnings("unchecked")
 	public List<ArkRolePolicyTemplate> getArkRolePolicytemplateList(ArkUserRole arkUserRole){
 		String queryString = "SELECT  arpt FROM ArkRolePolicyTemplate arpt where arpt.arkRole=(:arkRole) and "
-							 + "arpt.arkModule=(:arkModule) group by arpt.arkFunction, arpt.id";
+				 + "arpt.arkModule=(:arkModule) group by arpt.arkFunction";
+							// + "arpt.arkModule=(:arkModule) group by arpt.arkFunction, arpt.id";
 		Query query = getSession().createQuery(queryString);
 		query.setParameter("arkRole",arkUserRole.getArkRole() );
 		query.setParameter("arkModule",arkUserRole.getArkModule() );
@@ -1249,9 +1247,52 @@ public class ArkAuthorisationDao<T> extends HibernateSessionDao implements IArkA
 				session.save(arkUserRole);
 			}
 		}
-		for (UserConfig config : arkUserVO.getArkUserConfigs()) {
-			session.update(config);
+	}
+
+	@Override
+	public List<Study> getUserStudyListIncludeChildren(ArkUserVO arkUserVO) {
+		Criteria criteria = getSession().createCriteria(ArkUserRole.class);
+		criteria.add(Restrictions.eq("arkUser", arkUserVO.getArkUserEntity()));
+		ProjectionList projectionList = Projections.projectionList();
+		projectionList.add(Projections.groupProperty("study"), "study");
+		criteria.setProjection(projectionList);
+		criteria.setResultTransformer(Transformers.aliasToBean(ArkUserRole.class));
+		List<ArkUserRole> arkUserRoleLst=	 (List<ArkUserRole>)criteria.list();
+		List<Study>  studyList=new ArrayList<Study>();
+		for (ArkUserRole arkUserRole : arkUserRoleLst) {
+			studyList.add(arkUserRole.getStudy());
 		}
+		return studyList;
 	}
 	
+	public List<Study> getStudiesWithRoleForUser(ArkUserVO arkUserVO, ArkRole arkRole) {
+		try {
+			String ldapName = arkUserVO.getArkUserEntity().getLdapUserName();
+			if(isUserAdminHelper(ldapName, RoleConstants.ARK_ROLE_SUPER_ADMINISTATOR) ||
+					isUserAdminHelper(ldapName, RoleConstants.ARK_ROLE_ADMINISTATOR)) {
+				return getStudyListForUser(arkUserVO);
+			}
+
+		} catch (EntityNotFoundException e) {
+			e.printStackTrace();
+		}
+		Criteria criteria = getSession().createCriteria(ArkUserRole.class);
+
+		criteria.add(Restrictions.eq("arkUser", arkUserVO.getArkUserEntity()));
+        criteria.add(Restrictions.eq("arkRole", arkRole));
+
+		criteria.setProjection(Projections.property("study"));
+
+		return criteria.list();
+	}
+
+	@Override
+	public void deleteUserConfigSetting(ArkUserVO arkUserVO) {
+		Criteria criteria = getSession().createCriteria(Setting.class);
+		criteria.add(Restrictions.eq("arkUser", arkUserVO.getArkUserEntity()));
+		List<Setting> listOfResults = (List<Setting>)criteria.list();
+		for (Setting userSpecificSetting : listOfResults) {
+			getSession().delete(userSpecificSetting);
+		}
+	}
 }

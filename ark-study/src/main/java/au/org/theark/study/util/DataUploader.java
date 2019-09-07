@@ -58,6 +58,8 @@ import au.org.theark.core.model.study.entity.Country;
 import au.org.theark.core.model.study.entity.CustomField;
 import au.org.theark.core.model.study.entity.CustomFieldDisplay;
 import au.org.theark.core.model.study.entity.CustomFieldType;
+import au.org.theark.core.model.study.entity.EmailAccount;
+import au.org.theark.core.model.study.entity.EmailAccountType;
 import au.org.theark.core.model.study.entity.EmailStatus;
 import au.org.theark.core.model.study.entity.FamilyCustomFieldData;
 import au.org.theark.core.model.study.entity.GenderType;
@@ -88,6 +90,7 @@ import au.org.theark.core.service.IArkCommonService;
 import au.org.theark.core.util.DataConversionAndManipulationHelper;
 import au.org.theark.core.util.XLStoCSV;
 import au.org.theark.core.vo.ConsentVO;
+import au.org.theark.core.vo.UploadVO;
 import au.org.theark.study.service.IStudyService;
 
 import com.csvreader.CsvReader;
@@ -197,7 +200,8 @@ public class DataUploader {
 			// much better to call this once than each one n times in the for loop...plus each ones default is n times
 			// should save 200,000-250,000 selects for a 17K insert. may still wish to evaluate whats best here
 			Collection<MaritalStatus> maritalStatiiPossible = iArkCommonService.getMaritalStatus();
-			Collection<EmailStatus> emailStatiiPossible = iArkCommonService.getAllEmailStatuses();
+			Collection<EmailStatus> emailStatusPossible = iArkCommonService.getAllEmailStatuses();
+			Collection<EmailAccountType> emailTypesPossible = iArkCommonService.getEmailAccountTypes();
 			Collection<SubjectStatus> subjectStatiiPossible = iArkCommonService.getSubjectStatus();
 			Collection<GenderType> genderTypesPossible = iArkCommonService.getGenderTypes();
 			Collection<TitleType> titleTypesPossible = iArkCommonService.getTitleType();
@@ -250,6 +254,7 @@ public class DataUploader {
 			VitalStatus defaultVitalStatus = iStudyService.getDefaultVitalStatus();
 			MaritalStatus defaultMaritalStatus = iStudyService.getDefaultMaritalStatus();
 			EmailStatus defaultEmailStatus = iStudyService.getDefaultEmailStatus();
+			EmailAccountType defaultEmailType = iStudyService.getDefaultEmailAccountType();
 			ConsentOption concentOptionOfYes = iStudyService.getConsentOptionForBoolean(true);// sounds a lot like boolean blah = true????
 			ConsentStatus consentStatusOfConsented = iStudyService.getConsentStatusByName("Consented");
 			ConsentType consentTypeOfElectronic = iStudyService.getConsentTypeByName("Electronic");
@@ -284,10 +289,6 @@ public class DataUploader {
 			int lastNameIndex = csvReader.getIndex("LAST_NAME");
 			int previousLastNameIndex = csvReader.getIndex("PREVIOUS_LAST_NAME");
 			int preferredNameIndex = csvReader.getIndex("PREFERRED_NAME");
-			int preferredEmailIndex = csvReader.getIndex("EMAIL");
-			int preferredEmailStatusIndex = csvReader.getIndex("EMAIL_STATUS");
-			int otherEmailIndex = csvReader.getIndex("OTHER_EMAIL");
-			int otherEmailStatusIndex = csvReader.getIndex("OTHER_EMAIL_STATUS");
 			int heardAboutStudyIndex = csvReader.getIndex("HEARD_ABOUT_STUDY");
 			int commentsIndex = csvReader.getIndex("COMMENTS");
 			int titleIndex = csvReader.getIndex("TITLE");
@@ -295,18 +296,18 @@ public class DataUploader {
 			int maritalStatusIndex = csvReader.getIndex("MARITAL_STATUS");
 			int statusIndex = csvReader.getIndex("STATUS");
 
-			int addressLine1Index = csvReader.getIndex("BUILDING_NAME");
-			int addressLine2Index = csvReader.getIndex("STREET_ADDRESS");
-			int suburbIndex = csvReader.getIndex("SUBURB");
-			int stateIndex = csvReader.getIndex("STATE");
-			int countryIndex = csvReader.getIndex("COUNTRY");
-			int postCodeIndex = csvReader.getIndex("POST_CODE");
+			int addressLine1Index = csvReader.getIndex("ADDRESS_BUILDING_NAME");
+			int addressLine2Index = csvReader.getIndex("ADDRESS_STREET_ADDRESS");
+			int suburbIndex = csvReader.getIndex("ADDRESS_SUBURB");
+			int stateIndex = csvReader.getIndex("ADDRESS_STATE");
+			int countryIndex = csvReader.getIndex("ADDRESS_COUNTRY");
+			int postCodeIndex = csvReader.getIndex("ADDRESS_POST_CODE");
 			int addressSourceIndex = csvReader.getIndex("ADDRESS_SOURCE");
 			int addressStatusIndex = csvReader.getIndex("ADDRESS_STATUS");
 			int addressTypeIndex = csvReader.getIndex("ADDRESS_TYPE");
 			int addressReceivedIndex = csvReader.getIndex("ADDRESS_DATE_RECEIVED");
 			int addressCommentsIndex = csvReader.getIndex("ADDRESS_COMMENTS");
-			int isPreferredMailingIndex = csvReader.getIndex("IS_PREFERRED_MAILING_ADDRESS");
+			int isPreferredMailingIndex = csvReader.getIndex("ADDRESS_IS_PREFERRED");
 
 			int phoneNumberIndex = csvReader.getIndex("PHONE_NUMBER");
 			int areaCodeIndex = csvReader.getIndex("PHONE_AREA_CODE");
@@ -315,7 +316,15 @@ public class DataUploader {
 			int phoneSourceIndex = csvReader.getIndex("PHONE_SOURCE");
 			int phoneCommentsIndex = csvReader.getIndex("PHONE_COMMENTS");
 			int phoneDateReceivedIndex = csvReader.getIndex("PHONE_DATE_RECEIVED");
-			int phoneSilentIndex = csvReader.getIndex("SILENT");
+			int phoneSilentIndex = csvReader.getIndex("PHONE_SILENT");
+			int phoneIsPreferredIndex = csvReader.getIndex("PHONE_IS_PREFERRED");
+			int familyIdIndex = csvReader.getIndex("FAMILY_UID");
+			
+			int emailIndex = csvReader.getIndex("EMAIL");
+			int emailTypeIndex = csvReader.getIndex("EMAIL_TYPE");
+			int emailStatusIndex = csvReader.getIndex("EMAIL_STATUS");
+			int emailIsPreferredEmailIndex = csvReader.getIndex("EMAIL_IS_PREFERRED");
+
 
 			// if(PERSON_CONTACT_METHOD is in headers, use it,
 			// else, if CONTACT_METHOD, us IT, else, just set to -1
@@ -353,16 +362,16 @@ public class DataUploader {
 
 				if (!isAutoGen && (subjectUID == null || subjectUID.isEmpty())) {
 					if (!hasSomeData) {
-						uploadReport.append("Warning/Info: Row " + rowCount + ":  There appeared to be no data on this row, so we ignored this line");
+						uploadReport.append("Row " + rowCount + ":  This line was ignored because no data was found.");
 					}
 					else {
 						// THIS SHOULD NEVER EVER HAPPEN IF VALIDATION IS CORRECT
-						uploadReport.append("Error: Row " + rowCount + ":  There is no subject UID on this row, "
+						uploadReport.append("Row " + rowCount + ":  There is no subject UID on this row, "
 								+ "yet the study is not set up to auto generate subject UIDs.  This line was ignored.  Please remove this line or provide an ID");
 					}
 				}
 				else if (isAutoGen && (subjectUID == null || subjectUID.isEmpty()) && !hasSomeData) {
-					uploadReport.append("Warning/Info: Row " + rowCount + ":  There appeared to be no data on this row, so we ignored this line");
+					uploadReport.append("Row " + rowCount + ":  This line was ignored because no data was found.");
 				}
 				else {
 
@@ -378,6 +387,10 @@ public class DataUploader {
 						subject.setSubjectUID(subjectUID);// note: this will be overwritten IF study.isautogenerate
 						subject.setStudy(study);
 						person = new Person();
+					}
+					
+					if(familyIdIndex > 0){
+						subject.setFamilyUID(stringLineArray[familyIdIndex]);
 					}
 
 					if (firstNameIndex > 0)
@@ -498,44 +511,6 @@ public class DataUploader {
 						person.setVitalStatus(defaultVitalStatus);
 					}
 
-					if (preferredEmailIndex > 0) {
-						person.setPreferredEmail(stringLineArray[preferredEmailIndex]);
-					}
-
-					if (otherEmailIndex > 0) {
-						person.setOtherEmail(stringLineArray[otherEmailIndex]);
-					}
-
-					if (preferredEmailStatusIndex > 0) {
-						String preferredEmailStatusStr = (stringLineArray[preferredEmailStatusIndex]);
-						for (EmailStatus possibleEmailStat : emailStatiiPossible) {
-							if (possibleEmailStat.getName().equalsIgnoreCase(preferredEmailStatusStr)) {
-								person.setPreferredEmailStatus(possibleEmailStat);
-							}
-						}
-						if (person.getPreferredEmailStatus() == null || StringUtils.isBlank(person.getPreferredEmailStatus().getName())) {
-							person.setPreferredEmailStatus(defaultEmailStatus);
-						}
-					}
-					if (person.getPreferredEmailStatus() == null) {
-						person.setPreferredEmailStatus(defaultEmailStatus);
-					}
-
-					if (otherEmailStatusIndex > 0) {
-						String OtherEmailStatusStr = (stringLineArray[otherEmailStatusIndex]);
-						for (EmailStatus possibleEmailStat : emailStatiiPossible) {
-							if (possibleEmailStat.getName().equalsIgnoreCase(OtherEmailStatusStr)) {
-								person.setOtherEmailStatus(possibleEmailStat);
-							}
-						}
-						if (person.getOtherEmailStatus() == null || StringUtils.isBlank(person.getOtherEmailStatus().getName())) {
-							person.setOtherEmailStatus(defaultEmailStatus);
-						}
-					}
-					if (person.getOtherEmailStatus() == null) {
-						person.setOtherEmailStatus(defaultEmailStatus);
-					}
-
 					if (titleIndex > 0) {
 						String titleStr = (stringLineArray[titleIndex]);
 						for (TitleType titleType : titleTypesPossible) {
@@ -607,11 +582,13 @@ public class DataUploader {
 					else {
 						// Manual Consent details
 						String consentDate = csvReader.get("CONSENT_DATE");
+						String consentExpiryDate = csvReader.get("CONSENT_EXPIRY_DATE");
 						String consentStatusStr = csvReader.get("CONSENT_STATUS");
 						String consentTypeStr = csvReader.get("CONSENT_TYPE");
 						String passiveDataStr = csvReader.get("CONSENT_TO_PASSIVE_DATA_GATHERING");
 						String activeContactStr = csvReader.get("CONSENT_TO_ACTIVE_CONTACT");
 						String useDataStr = csvReader.get("CONSENT_TO_USE_DATA");
+						String consentDateOfLastChange = csvReader.get("CONSENT_DATE_OF_LAST_CHANGE");
 
 						if (!consentDate.isEmpty() || !consentStatusStr.isEmpty() || !consentTypeStr.isEmpty() || !passiveDataStr.isEmpty() || !activeContactStr.isEmpty() || !useDataStr.isEmpty()) {
 							LinkSubjectStudy newSubject = new LinkSubjectStudy();
@@ -619,7 +596,10 @@ public class DataUploader {
 							if (!consentDate.isEmpty()) {
 								newSubject.setConsentDate(simpleDateFormat.parse(consentDate));
 							}
-
+							
+							if (!consentExpiryDate.isEmpty()) {
+								newSubject.setConsentExpiryDate(simpleDateFormat.parse(consentExpiryDate));
+							}
 							if (!consentStatusStr.isEmpty()) {
 								for (ConsentStatus consentStatus : consentStatusPossible) {
 									if (consentStatus.getName().equalsIgnoreCase(consentStatusStr)) {
@@ -651,18 +631,26 @@ public class DataUploader {
 									}
 								}
 							}
-
+							//Upload thw consent Date of Last change is entered or else insert the today's date.
+							if(!consentDateOfLastChange.isEmpty()){
+								newSubject.setConsentDateOfLastChange(simpleDateFormat.parse(consentDateOfLastChange));
+							}else{
+								newSubject.setConsentDateOfLastChange(new Date());
+							}
+					
 							if (thisSubjectAlreadyExists) {
 								// Existing Subject to compare if consent actually changed (inherently handles when no consent previously)
 								LinkSubjectStudyConsentHistoryComparator comparator = new LinkSubjectStudyConsentHistoryComparator();
 								if (comparator.compare(subject, newSubject) != 0) {
 									subject.setUpdateConsent(true);
 									subject.setConsentDate(newSubject.getConsentDate());
+									subject.setConsentExpiryDate(newSubject.getConsentExpiryDate());
 									subject.setConsentStatus(newSubject.getConsentStatus());
 									subject.setConsentType(newSubject.getConsentType());
 									subject.setConsentToPassiveDataGathering(newSubject.getConsentToPassiveDataGathering());
 									subject.setConsentToActiveContact(newSubject.getConsentToActiveContact());
 									subject.setConsentToUseData(newSubject.getConsentToUseData());
+									subject.setConsentDateOfLastChange(newSubject.getConsentDateOfLastChange());
 								}
 								else {
 									subject.setUpdateConsent(false);
@@ -671,11 +659,13 @@ public class DataUploader {
 							else {
 								// New Subject with consent details
 								subject.setConsentDate(newSubject.getConsentDate());
+								subject.setConsentExpiryDate(newSubject.getConsentExpiryDate());
 								subject.setConsentStatus(newSubject.getConsentStatus());
 								subject.setConsentType(newSubject.getConsentType());
 								subject.setConsentToPassiveDataGathering(newSubject.getConsentToPassiveDataGathering());
 								subject.setConsentToActiveContact(newSubject.getConsentToActiveContact());
 								subject.setConsentToUseData(newSubject.getConsentToUseData());
+								subject.setConsentDateOfLastChange(newSubject.getConsentDateOfLastChange());
 							}
 						}
 					}
@@ -757,7 +747,7 @@ public class DataUploader {
 								// State state = findState(statesPossible, stateString, country);
 								State state = findStateWithinThisCountry(stateString, country);
 								if (state == null) {
-									uploadReport.append("Warning/Info: could not find a state named '" + stateString + "' in " + country.getName() + " for row " + rowCount + ", but will proceed.\n");
+									uploadReport.append("Could not find a state named '" + stateString + "' in " + country.getName() + " for row " + rowCount + ". The upload will proceed.\n");
 									addressToAttachToPerson.setOtherState(stateString);
 								}
 								else {
@@ -765,7 +755,7 @@ public class DataUploader {
 								}
 							}
 							else {
-								uploadReport.append("Warning/Info:  Could not find country '" + countryString + " for row " + rowCount + ", but will proceed.\n");
+								uploadReport.append("Could not find country '" + countryString + " for row " + rowCount + ". The upload will proceed.\n");
 							}
 
 							String addressSource = stringLineArray[addressSourceIndex];
@@ -805,14 +795,14 @@ public class DataUploader {
 							}
 
 							if (usingDefaultStatus && usingDefaultType) {
-								uploadReport.append("Info:  Using the default status '" + defaultAddressStatus.getName() + "' and the default type '" + defaultAddressType.getName() + " for row " + rowCount
-										+ ", but will proceed.\n");
+								uploadReport.append("Using the default status '" + defaultAddressStatus.getName() + "' and the default type '" + defaultAddressType.getName() + " for row " + rowCount
+										+ "\n");
 							}
 							else if (usingDefaultType) {
-								uploadReport.append("Info:  Using the default type '" + defaultAddressType.getName() + "' for row " + rowCount + ", but will proceed.\n");
+								uploadReport.append("Using the default type '" + defaultAddressType.getName() + "' for row " + rowCount + "\n");
 							}
 							else if (usingDefaultStatus) {
-								uploadReport.append("Info:  Using the default status '" + defaultAddressStatus.getName() + " for row " + rowCount + ", but will proceed.\n");
+								uploadReport.append("Using the default status '" + defaultAddressStatus.getName() + " for row " + rowCount + "\n");
 							}
 
 							if (addressSource != null && !addressSource.isEmpty())
@@ -874,7 +864,9 @@ public class DataUploader {
 							String areaCode = stringLineArray[areaCodeIndex];
 							String silentString = stringLineArray[phoneSilentIndex];
 							String phoneSource = stringLineArray[phoneSourceIndex];
+							String phoneIsPreferred=stringLineArray[phoneIsPreferredIndex];
 							String phoneDateReceivedString = stringLineArray[phoneDateReceivedIndex];
+							
 							// log.warn("phone Date Reveived = " + phoneDateReceivedString + " for index = " + phoneDateReceivedIndex);
 
 							phoneToAttachToPerson.setPhoneType(type);
@@ -898,20 +890,29 @@ public class DataUploader {
 									phoneToAttachToPerson.setSilentMode(no);
 								}
 							}
+							if (DataConversionAndManipulationHelper.isSomethingLikeABoolean(phoneIsPreferred)) {
+								if (DataConversionAndManipulationHelper.isSomethingLikeTrue(phoneIsPreferred)) {
+									phoneToAttachToPerson.setPreferredPhoneNumber(true);
+								}
+								else {
+									phoneToAttachToPerson.setPreferredPhoneNumber(false);
+								}
+							}
+							
 							if (phoneComments != null && !phoneComments.isEmpty())
 								phoneToAttachToPerson.setComment(phoneComments);
 							if (phoneSource != null && !phoneSource.isEmpty())
 								phoneToAttachToPerson.setSource(phoneSource);
 
 							if (usingDefaultStatus && usingDefaultType) {
-								uploadReport.append("Info:  Using the default status '" + defaultAddressStatus.getName() + "' and the default type '" + defaultAddressType.getName() + " for row " + rowCount
-										+ ", but will proceed.\n");
+								uploadReport.append("Using the default status '" + defaultAddressStatus.getName() + "' and the default type '" + defaultAddressType.getName() + " for row " + rowCount
+										+ "\n");
 							}
 							else if (usingDefaultType) {
-								uploadReport.append("Info:  Using the default type '" + defaultAddressType.getName() + "' for row " + rowCount + ", but will proceed.\n");
+								uploadReport.append("Using the default type '" + defaultAddressType.getName() + "' for row " + rowCount + "\n");
 							}
 							else if (usingDefaultStatus) {
-								uploadReport.append("Info:  Using the default status '" + defaultAddressStatus.getName() + " for row " + rowCount + ", but will proceed.\n");
+								uploadReport.append("Using the default status '" + defaultAddressStatus.getName() + " for row " + rowCount + "\n");
 							}
 
 							if (!updatePhones) {
@@ -920,6 +921,85 @@ public class DataUploader {
 								person.getPhones().add(phoneToAttachToPerson);
 							}
 						}
+					}
+					
+					if(emailIndex > 0){
+						boolean updateEmails = false;
+						boolean usingDefaultType = false;
+						boolean usingDefaultStatus = false;
+						String emailString = stringLineArray[emailIndex];
+
+						if (emailString == null || StringUtils.isBlank(emailString)) {
+							// then lets just jump out as there is no phone to validate. lay down to user that they must have data if they want an update
+						}
+						else {
+							EmailAccount emailAccountToAttachToPerson = null;
+							if (thisSubjectAlreadyExists) {
+								String typeString = null;
+								String statusString = null;
+
+								if (emailTypeIndex > 0) {
+									typeString = stringLineArray[emailTypeIndex];
+									if (typeString == null || typeString.isEmpty()) {
+										typeString = defaultEmailType.getName();
+										usingDefaultType = true;
+									}
+								}
+								if (emailStatusIndex > 0) {
+									statusString = stringLineArray[emailStatusIndex];
+									if (statusString == null || statusString.isEmpty()) {
+										statusString = defaultEmailStatus.getName();
+										usingDefaultStatus = true;
+									}
+								}
+								for (EmailAccount email : person.getEmailAccounts()) {
+									if (email.getEmailStatus().getName().equalsIgnoreCase(statusString) && email.getEmailAccountType().getName().equalsIgnoreCase(typeString)) {
+										emailAccountToAttachToPerson = email;
+										updateEmails = true;
+									}
+								}
+							}
+							if (emailAccountToAttachToPerson == null) {
+								emailAccountToAttachToPerson = new EmailAccount();
+							}
+							
+							EmailAccountType type = findEmailAccountTypeOrSetDefault((List<EmailAccountType>)emailTypesPossible, defaultEmailType, stringLineArray[emailTypeIndex]);
+							EmailStatus status = findEmailStatusOrSetDefault((List<EmailStatus>)emailStatusPossible, defaultEmailStatus, stringLineArray[emailStatusIndex]);
+							
+							String email = stringLineArray[emailIndex];
+							String emailIsPreffered = stringLineArray[emailIsPreferredEmailIndex];
+							
+							emailAccountToAttachToPerson.setName(email);
+							emailAccountToAttachToPerson.setEmailAccountType(type);
+							emailAccountToAttachToPerson.setEmailStatus(status);
+							
+							if (DataConversionAndManipulationHelper.isSomethingLikeABoolean(emailIsPreffered)) {
+								if (DataConversionAndManipulationHelper.isSomethingLikeTrue(emailIsPreffered)) {
+									emailAccountToAttachToPerson.setPrimaryAccount(true);
+								}
+								else {
+									emailAccountToAttachToPerson.setPrimaryAccount(false);
+								}
+							}
+							
+							if (usingDefaultStatus && usingDefaultType) {
+								uploadReport.append("Using the default status '" + defaultEmailStatus.getName() + "' and the default type '" + defaultEmailType.getName() + " for row " + rowCount
+										+ "\n");
+							}
+							else if (usingDefaultType) {
+								uploadReport.append("Using the default type '" + defaultEmailType.getName() + "' for row " + rowCount + "\n");
+							}
+							else if (usingDefaultStatus) {
+								uploadReport.append("Using the default status '" + defaultEmailStatus.getName() + " for row " + rowCount + "\n");
+							}
+							
+							if (!updateEmails) {
+								// TODO check this works in all cases
+								emailAccountToAttachToPerson.setPerson(person);
+								person.getEmailAccounts().add(emailAccountToAttachToPerson);
+							}
+						}
+
 					}
 
 					/*
@@ -1006,14 +1086,14 @@ public class DataUploader {
 			}
 		}
 		catch (IOException ioe) {
-			uploadReport.append("System Error:   Unexpected I/O exception whilst reading the subject data file\n");
+			uploadReport.append("An unexpected I/O exception occurred whilst reading the subject data file.\n");
 			log.error("processMatrixSubjectFile IOException stacktrace:", ioe);
-			throw new ArkSystemException("Unexpected I/O exception whilst reading the subject data file");
+			throw new ArkSystemException("An unexpected I/O exception occurred whilst reading the subject data file");
 		}
 		catch (Exception ex) {
-			uploadReport.append("System Error:  Unexpected exception whilst reading the subject data file\n");
+			uploadReport.append("An unexpected exception occurred whilst reading the subject data file.\n");
 			log.error("processMatrixSubjectFile Exception stacktrace:", ex);
-			throw new ArkSystemException("Unexpected exception occurred when trying to process subject data file");
+			throw new ArkSystemException("An unexpected exception occurred when trying to process subject data file");
 		}
 		finally {
 			uploadReport.append("Total file size: ");
@@ -1144,6 +1224,28 @@ public class DataUploader {
 		}
 		return defaultPhoneType;
 	}
+	
+	private EmailStatus findEmailStatusOrSetDefault(List<EmailStatus> statusAlreadyExisting, EmailStatus defaultEmailStatus, String stringRepresentingTheStatusWeWant) {
+		if (stringRepresentingTheStatusWeWant != null && !StringUtils.isBlank(stringRepresentingTheStatusWeWant)) {
+			for (EmailStatus nextStatus : statusAlreadyExisting) {
+				if (nextStatus.getName().equalsIgnoreCase(stringRepresentingTheStatusWeWant)) {
+					return nextStatus;
+				}
+			}
+		}
+		return defaultEmailStatus;
+	}
+
+	private EmailAccountType findEmailAccountTypeOrSetDefault(List<EmailAccountType> typesAlreadyExisting, EmailAccountType defaultEmailAccountType, String stringRepresentingTheTypeWeWant) {
+		if (stringRepresentingTheTypeWeWant != null && !StringUtils.isBlank(stringRepresentingTheTypeWeWant)) {
+			for (EmailAccountType nextType : typesAlreadyExisting) {
+				if (nextType.getName().equalsIgnoreCase(stringRepresentingTheTypeWeWant)) {
+					return nextType;
+				}
+			}
+		}
+		return defaultEmailAccountType;
+	}
 
 	/**
 	 * Upload and report Subject Custom field Data.
@@ -1158,7 +1260,7 @@ public class DataUploader {
 	 * @throws ArkSystemException
 	 * Used in step 4.
 	 */
-	public StringBuffer uploadAndReportSubjectCustomDataFile(InputStream inputStream, long size, String fileFormat, char delimChar, List<String> listOfUIDsToUpdate) throws FileFormatException,
+	public StringBuffer uploadAndReportSubjectCustomDataFile(InputStream inputStream, long size, String fileFormat, char delimChar, List<String> listOfUIDsToUpdate,UploadVO uploadVO) throws FileFormatException,
 			ArkSystemException {
 		List<SubjectCustomFieldData> customFieldsToUpdate = new ArrayList<SubjectCustomFieldData>();
 		List<SubjectCustomFieldData> customFieldsToInsert = new ArrayList<SubjectCustomFieldData>();
@@ -1185,16 +1287,18 @@ public class DataUploader {
 		}
 		
 
-		int subjectCount = 0;
+		int subjectCount = 1;
 		long updateFieldsCount = 0L;
 		long insertFieldsCount = 0L;
 		long emptyDataCount = 0L;
+		int percentage=0;
+		int totalUploadSize=0;
 		try {
 			
 			String[] stringLineArray;
-
 			List<LinkSubjectStudy> allSubjectWhichWillBeUpdated = null;
-			if (listOfUIDsToUpdate.size() > 0) {
+			totalUploadSize=listOfUIDsToUpdate.size();
+			if (totalUploadSize > 0) {
 				allSubjectWhichWillBeUpdated = iArkCommonService.getUniqueSubjectsWithTheseUIDs(study, listOfUIDsToUpdate);
 			}
 			else {
@@ -1217,7 +1321,8 @@ public class DataUploader {
 			// read one line which contains potentially many custom fields
 			while (csvReader.readRecord()) {
 				log.info("reading record " + subjectCount);
-
+				percentage=(int)Math.round(((double)(subjectCount)/(double)totalUploadSize)*100.0);
+				uploadVO.setProgress(percentage);
 				stringLineArray = csvReader.getValues();
 				String subjectUID = stringLineArray[0];
 				LinkSubjectStudy subject = getSubjectByUIDFromExistList(allSubjectWhichWillBeUpdated, subjectUID);
@@ -1259,14 +1364,14 @@ public class DataUploader {
 					+ insertFieldsCount + "  or  \ncustomFieldsToInsert.size = " + customFieldsToInsert.size() + "   amount of empty scells =" + emptyDataCount);
 		}
 		catch (IOException ioe) {
-			uploadReport.append("SYSTEM ERROR:   Unexpected I/O exception whilst reading the subject data file\n");
+			uploadReport.append("An unexpected I/O exception occurred whilst reading the subject data file.\n");
 			log.error("processMatrixSubjectFile IOException stacktrace:", ioe);
-			throw new ArkSystemException("Unexpected I/O exception whilst reading the subject data file");
+			throw new ArkSystemException("An unexpected I/O exception occurred whilst reading the subject data file.");
 		}
 		catch (Exception ex) {
-			uploadReport.append("SYSTEM ERROR:   Unexpected exception whilst reading the subject data file\n");
+			uploadReport.append("An unexpected exception occurred whilst reading the subject data file.\n");
 			log.error("processMatrixSubjectFile Exception stacktrace:", ex);
-			throw new ArkSystemException("Unexpected exception occurred when trying to process subject data file");
+			throw new ArkSystemException("An unexpected exception occurred when trying to process subject data file.");
 		}
 		finally {
 			uploadReport.append("Total file size: ");
@@ -1415,14 +1520,14 @@ public class DataUploader {
 					+ insertFieldsCount + "  or  \ncustomFieldsToInsert.size = " + customFieldsToInsert.size() + "   amount of empty scells =" + emptyDataCount);
 		}
 		catch (IOException ioe) {
-			uploadReport.append("SYSTEM ERROR:   Unexpected I/O exception whilst reading the family data file\n");
+			uploadReport.append("An unexpected I/O exception occurred whilst reading the family data file.\n");
 			log.error("processMatrixSubjectFile IOException stacktrace:", ioe);
-			throw new ArkSystemException("Unexpected I/O exception whilst reading the family data file");
+			throw new ArkSystemException("An unexpected I/O exception occurred whilst reading the family data file.");
 		}
 		catch (Exception ex) {
-			uploadReport.append("SYSTEM ERROR:   Unexpected exception whilst reading the family data file\n");
+			uploadReport.append("An unexpected exception occurred whilst reading the family data file.\n");
 			log.error("processMatrixSubjectFile Exception stacktrace:", ex);
-			throw new ArkSystemException("Unexpected exception occurred when trying to process family data file");
+			throw new ArkSystemException("An unexpected exception occurred when trying to process family data file.");
 		}
 		finally {
 			uploadReport.append("Total file size: ");
@@ -1625,6 +1730,9 @@ public class DataUploader {
 			int consentDateIndex = csvReader.getIndex("CONSENT_DATE");
 			int commentIndex = csvReader.getIndex("COMMENT");
 			int completedDateIndex = csvReader.getIndex("COMPLETED_DATE");
+			int requestedDateIndex = csvReader.getIndex("REQUESTED_DATE");
+			int receivedDateIndex = csvReader.getIndex("RECEIVED_DATE");
+			
 
 			while (csvReader.readRecord()) {
 				++rowCount;
@@ -1659,17 +1767,27 @@ public class DataUploader {
 					if (stringLineArray.length > commentIndex) {
 						existingConsent.setComments(stringLineArray[commentIndex]);
 					}
-
-					if ("Completed".equalsIgnoreCase(existingConsent.getStudyComponentStatus().getName())) {
+					if (au.org.theark.core.Constants.STUDY_COMP_STATUS_COMPLETED.equalsIgnoreCase(existingConsent.getStudyComponentStatus().getName())) {
 						try {
 							existingConsent.setCompletedDate(simpleDateFormat.parse(stringLineArray[completedDateIndex]));
 						}
 						catch (Exception e) {
 							existingConsent.setCompletedDate(null);
 						}
-					}
-					else {
-						existingConsent.setCompletedDate(null);
+					}else if(au.org.theark.core.Constants.STUDY_COMP_STATUS_RECEIVED.equalsIgnoreCase(existingConsent.getStudyComponentStatus().getName())){
+						try {
+							existingConsent.setReceivedDate(simpleDateFormat.parse(stringLineArray[receivedDateIndex]));
+						}
+						catch (Exception e) {
+							existingConsent.setReceivedDate(null);
+						}
+					}else if(au.org.theark.core.Constants.STUDY_COMP_STATUS_REQUESTED.equalsIgnoreCase(existingConsent.getStudyComponentStatus().getName())){
+						try {
+							existingConsent.setRequestedDate(simpleDateFormat.parse(stringLineArray[requestedDateIndex]));
+						}
+						catch (Exception e) {
+							existingConsent.setRequestedDate(null);
+						}
 					}
 					consentFieldsToUpdate.add(existingConsent);
 				}
@@ -1704,12 +1822,26 @@ public class DataUploader {
 						consent.setComments(stringLineArray[commentIndex].trim());
 					}
 
-					if ("Completed".equalsIgnoreCase(consent.getStudyComponentStatus().getName())) {
+					if (au.org.theark.core.Constants.STUDY_COMP_STATUS_COMPLETED.equalsIgnoreCase(consent.getStudyComponentStatus().getName())) {
 						try {
 							consent.setCompletedDate(simpleDateFormat.parse(stringLineArray[completedDateIndex].trim()));
 						}
 						catch (Exception e) {
 							consent.setCompletedDate(null);
+						}
+					}else if(au.org.theark.core.Constants.STUDY_COMP_STATUS_RECEIVED.equalsIgnoreCase(consent.getStudyComponentStatus().getName())){
+						try {
+							consent.setReceivedDate(simpleDateFormat.parse(stringLineArray[receivedDateIndex].trim()));
+						}
+						catch (Exception e) {
+							consent.setReceivedDate(null);
+						}
+					}else if(au.org.theark.core.Constants.STUDY_COMP_STATUS_REQUESTED.equalsIgnoreCase(consent.getStudyComponentStatus().getName())){
+						try {
+							consent.setRequestedDate(simpleDateFormat.parse(stringLineArray[requestedDateIndex].trim()));
+						}
+						catch (Exception e) {
+							consent.setRequestedDate(null);
 						}
 					}
 					consentFieldsToInsert.add(consent);
